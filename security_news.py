@@ -466,6 +466,10 @@ def render_site(config: dict[str, Any]) -> None:
                   --known: #7c2d12;
                   --success: #8fe83a;
                   --danger: #ff5f6d;
+                  --header-bg: #ffffff;
+                  --header-text: #151922;
+                  --header-muted: #5b6472;
+                  --page-gradient: linear-gradient(180deg, #edf4fb 0%, var(--bg) 360px);
                 }}
                 html[data-theme="dark"] {{
                   color-scheme: dark;
@@ -474,6 +478,10 @@ def render_site(config: dict[str, Any]) -> None:
                   --text: #eef2f7;
                   --muted: #a7b0be;
                   --line: #2b323d;
+                  --header-bg: #080d14;
+                  --header-text: #eef2f7;
+                  --header-muted: #a7b0be;
+                  --page-gradient: radial-gradient(circle at 80% -10%, rgba(28, 117, 255, 0.20), transparent 28rem), linear-gradient(180deg, #080d14 0%, var(--bg) 360px);
                 }}
                 @media (prefers-color-scheme: dark) {{
                   html:not([data-theme="light"]) {{
@@ -483,25 +491,29 @@ def render_site(config: dict[str, Any]) -> None:
                     --text: #eef2f7;
                     --muted: #a7b0be;
                     --line: #2b323d;
+                    --header-bg: #080d14;
+                    --header-text: #eef2f7;
+                    --header-muted: #a7b0be;
+                    --page-gradient: radial-gradient(circle at 80% -10%, rgba(28, 117, 255, 0.20), transparent 28rem), linear-gradient(180deg, #080d14 0%, var(--bg) 360px);
                   }}
                 }}
                 * {{ box-sizing: border-box; }}
                 body {{
                   margin: 0;
                   font-family: Inter, Segoe UI, system-ui, sans-serif;
-                  background:
-                    radial-gradient(circle at 80% -10%, rgba(28, 117, 255, 0.20), transparent 28rem),
-                    linear-gradient(180deg, #080d14 0%, var(--bg) 420px);
+                  background: var(--page-gradient);
                   color: var(--text);
                 }}
                 header {{
-                  background: #050910;
+                  background: var(--header-bg);
+                  color: var(--header-text);
                 }}
                 .hero {{
-                  min-height: clamp(260px, 31vw, 520px);
+                  height: clamp(150px, 18vw, 270px);
                   background-position: center;
                   background-repeat: no-repeat;
-                  background-size: cover;
+                  background-size: contain;
+                  background-color: #050910;
                   border-bottom: 1px solid rgba(143, 232, 58, 0.15);
                 }}
                 .wrap {{
@@ -526,7 +538,7 @@ def render_site(config: dict[str, Any]) -> None:
                   letter-spacing: 0;
                 }}
                 .sub {{
-                  color: var(--text);
+                  color: var(--header-muted);
                   font-size: clamp(17px, 1.5vw, 24px);
                   margin: 0;
                 }}
@@ -683,7 +695,6 @@ def render_site(config: dict[str, Any]) -> None:
                   </section>
                   <div class="actions">
                     <button class="reset" id="reset" type="button">x Filter zuruecksetzen</button>
-                    <button class="toggle" id="filterToggle" type="button">Filter ausblenden</button>
                   </div>
                 </section>
                 <section id="items">
@@ -696,9 +707,7 @@ def render_site(config: dict[str, Any]) -> None:
                 const sort = document.getElementById('sort');
                 const theme = document.getElementById('theme');
                 const count = document.getElementById('count');
-                const filters = document.getElementById('filters');
                 const reset = document.getElementById('reset');
-                const filterToggle = document.getElementById('filterToggle');
                 const itemContainer = document.getElementById('items');
                 const items = Array.from(document.querySelectorAll('.item'));
                 const savedTheme = localStorage.getItem('security-news-theme') || 'system';
@@ -751,11 +760,6 @@ def render_site(config: dict[str, Any]) -> None:
                   source.value = '';
                   sort.value = 'newest';
                   refresh();
-                }});
-                filterToggle.addEventListener('click', () => {{
-                  const hidden = filters.hidden;
-                  filters.hidden = !hidden;
-                  filterToggle.textContent = hidden ? 'Filter ausblenden' : 'Filter oeffnen';
                 }});
               </script>
             </body>
