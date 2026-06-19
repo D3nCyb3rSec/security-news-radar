@@ -1,0 +1,2 @@
+# Taeglicher Lauf um 08:00 Uhr. Pfad ggf. anpassen.
+0 8 * * * cd /opt/security-news && /opt/security-news/run.sh >> /var/log/security-news.log 2>&1

@@ -1,0 +1,67 @@
+{
+  "digest_title": "Security News Update",
+  "lookback_days": 2,
+  "kev_lookback_days": 14,
+  "request_delay_seconds": 0.5,
+  "site_limit": 120,
+  "notification_limit": 15,
+  "notify_when_empty": false,
+  "filters": {
+    "include_keywords": [
+      "critical",
+      "high",
+      "ransomware",
+      "zero-day",
+      "exploited",
+      "microsoft",
+      "linux",
+      "fortinet",
+      "citrix",
+      "vmware",
+      "cisco"
+    ],
+    "exclude_keywords": [],
+    "min_cvss_severity": "HIGH"
+  },
+  "sources": [
+    {
+      "name": "NVD CVE",
+      "type": "nvd",
+      "enabled": true
+    },
+    {
+      "name": "CISA Known Exploited Vulnerabilities",
+      "type": "cisa_kev",
+      "enabled": true
+    },
+    {
+      "name": "The Hacker News",
+      "type": "rss",
+      "url": "https://feeds.feedburner.com/TheHackersNews",
+      "enabled": true
+    },
+    {
+      "name": "BleepingComputer Security",
+      "type": "rss",
+      "url": "https://www.bleepingcomputer.com/feed/",
+      "enabled": true
+    },
+    {
+      "name": "Krebs on Security",
+      "type": "rss",
+      "url": "https://krebsonsecurity.com/feed/",
+      "enabled": true
+    }
+  ],
+  "email": {
+    "enabled": false,
+    "host": "smtp.example.com",
+    "port": 587,
+    "username": "",
+    "password": "",
+    "from": "security-news@example.com",
+    "to": [
+      "admin@example.com"
+    ]
+  }
+}

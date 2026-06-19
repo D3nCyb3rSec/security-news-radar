@@ -1,0 +1,18 @@
+[Unit]
+Description=Security News Radar
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/security-news
+EnvironmentFile=-/etc/security-news.env
+Environment=SECURITY_NEWS_CONFIG=/opt/security-news/config.json
+Environment=SECURITY_NEWS_DB_PATH=/var/lib/security-news/security_news.sqlite
+Environment=SECURITY_NEWS_SITE_PATH=/var/www/security-news/index.html
+ExecStart=/opt/security-news/run.sh
+User=security-news
+Group=security-news
+
+[Install]
+WantedBy=multi-user.target

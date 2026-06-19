@@ -1,0 +1,15 @@
+# Local configuration and secrets
+config.json
+.env
+
+# Runtime data
+data/*.sqlite
+data/*.sqlite-*
+public/*.html
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Logs
+*.log

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Security News Radar daily
+
+[Timer]
+OnCalendar=*-*-* 08:00:00
+Persistent=true
+RandomizedDelaySec=15m
+Unit=security-news.service
+
+[Install]
+WantedBy=timers.target
