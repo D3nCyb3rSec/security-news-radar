@@ -145,6 +145,14 @@ Das Logo liegt im Repository unter `assets/security-news-radar-logo.png`. Beim G
 "site_logo": "assets/security-news-radar-logo.png"
 ```
 
+Zusaetzlich wird ein RSS-Feed als `feed.xml` neben der Webseite erzeugt. Wenn die Seite oeffentlich erreichbar ist, kannst du optional die Basis-URL setzen:
+
+```json
+"site_url": "https://security-news.example.com",
+"rss_limit": 50,
+"rss_title": "Security News Radar"
+```
+
 Optional kannst du fuer NVD einen API-Key setzen, damit Rate-Limits seltener stoeren:
 
 ```bash

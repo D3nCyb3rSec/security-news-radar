@@ -6,6 +6,7 @@ config.json
 data/*.sqlite
 data/*.sqlite-*
 public/*.html
+public/*.xml
 
 # Python cache
 __pycache__/

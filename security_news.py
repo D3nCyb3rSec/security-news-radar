@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import email.message
+import email.utils
 import html
 import json
 import os
@@ -41,9 +42,14 @@ def parse_iso(value: str | None) -> dt.datetime | None:
     if not value:
         return None
     try:
-        return dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
     except ValueError:
-        return None
+        try:
+            parsed = email.utils.parsedate_to_datetime(value)
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.timezone.utc)
+        except (TypeError, ValueError):
+            return None
 
 
 def load_config(path: Path) -> dict[str, Any]:
@@ -347,13 +353,10 @@ def load_recent(limit: int = 120) -> list[sqlite3.Row]:
     rows = conn.execute(
         """
         SELECT * FROM items
-        ORDER BY COALESCE(published, first_seen) DESC, first_seen DESC
-        LIMIT ?
-        """,
-        (limit,),
+        """
     ).fetchall()
     conn.close()
-    return rows
+    return sorted(rows, key=sort_timestamp, reverse=True)[:limit]
 
 
 def sort_timestamp(row: sqlite3.Row) -> float:
@@ -361,6 +364,44 @@ def sort_timestamp(row: sqlite3.Row) -> float:
     first_seen = parse_iso(row["first_seen"])
     value = published or first_seen
     return value.timestamp() if value else 0
+
+
+def render_rss(rows: list[sqlite3.Row], config: dict[str, Any]) -> None:
+    site_url = str(config.get("site_url", "")).rstrip("/")
+    feed_url = f"{site_url}/feed.xml" if site_url else "feed.xml"
+    page_url = f"{site_url}/" if site_url else "index.html"
+    items = []
+    for row in rows[: int(config.get("rss_limit", 50))]:
+        published = parse_iso(row["published"]) or parse_iso(row["first_seen"]) or utc_now()
+        items.append(
+            f"""
+            <item>
+              <title>{html.escape(row["title"])}</title>
+              <link>{html.escape(row["url"])}</link>
+              <guid isPermaLink="false">{html.escape(row["id"])}</guid>
+              <pubDate>{published.strftime("%a, %d %b %Y %H:%M:%S %z")}</pubDate>
+              <source>{html.escape(row["source"])}</source>
+              <description>{html.escape(row["summary"] or "")}</description>
+            </item>
+            """
+        )
+    feed = textwrap.dedent(
+        f"""\
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>{html.escape(config.get("rss_title", "Security News Radar"))}</title>
+            <link>{html.escape(page_url)}</link>
+            <description>Aktuelle CVEs, bekannte Exploits und wichtige Cybersecurity-Meldungen.</description>
+            <language>de-DE</language>
+            <lastBuildDate>{utc_now().strftime("%a, %d %b %Y %H:%M:%S %z")}</lastBuildDate>
+            <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="{html.escape(feed_url)}" rel="self" type="application/rss+xml" />
+            {''.join(items)}
+          </channel>
+        </rss>
+        """
+    )
+    (SITE_PATH.parent / "feed.xml").write_text(feed, encoding="utf-8")
 
 
 def render_site(config: dict[str, Any]) -> None:
@@ -398,11 +439,8 @@ def render_site(config: dict[str, Any]) -> None:
         if logo_path.resolve() != logo_target.resolve():
             shutil.copy2(logo_path, logo_target)
         logo_url = f"assets/{urllib.parse.quote(logo_path.name)}"
-    logo_markup = (
-        f'<img class="site-logo" src="{html.escape(logo_url)}" alt="Security News Radar Logo">'
-        if logo_url
-        else ""
-    )
+    render_rss(rows, config)
+    hero_style = f' style="background-image: url(&quot;{html.escape(logo_url)}&quot;)"' if logo_url else ""
     SITE_PATH.write_text(
         textwrap.dedent(
             f"""\
@@ -412,6 +450,7 @@ def render_site(config: dict[str, Any]) -> None:
               <meta charset="utf-8">
               <meta name="viewport" content="width=device-width, initial-scale=1">
               <title>Security News Radar</title>
+              <link rel="alternate" type="application/rss+xml" title="Security News Radar RSS Feed" href="feed.xml">
               <style>
                 :root {{
                   color-scheme: light;
@@ -425,6 +464,8 @@ def render_site(config: dict[str, Any]) -> None:
                   --high: #c2410c;
                   --medium: #a16207;
                   --known: #7c2d12;
+                  --success: #8fe83a;
+                  --danger: #ff5f6d;
                 }}
                 html[data-theme="dark"] {{
                   color-scheme: dark;
@@ -448,19 +489,27 @@ def render_site(config: dict[str, Any]) -> None:
                 body {{
                   margin: 0;
                   font-family: Inter, Segoe UI, system-ui, sans-serif;
-                  background: var(--bg);
+                  background:
+                    radial-gradient(circle at 80% -10%, rgba(28, 117, 255, 0.20), transparent 28rem),
+                    linear-gradient(180deg, #080d14 0%, var(--bg) 420px);
                   color: var(--text);
                 }}
                 header {{
-                  border-bottom: 1px solid var(--line);
-                  background: var(--panel);
+                  background: #050910;
+                }}
+                .hero {{
+                  min-height: clamp(260px, 31vw, 520px);
+                  background-position: center;
+                  background-repeat: no-repeat;
+                  background-size: cover;
+                  border-bottom: 1px solid rgba(143, 232, 58, 0.15);
                 }}
                 .wrap {{
-                  width: min(1120px, calc(100% - 32px));
+                  width: min(1840px, calc(100% - 56px));
                   margin: 0 auto;
                 }}
                 .top {{
-                  padding: 28px 0 22px;
+                  padding: 44px 0 28px;
                   display: flex;
                   align-items: center;
                   justify-content: space-between;
@@ -473,51 +522,100 @@ def render_site(config: dict[str, Any]) -> None:
                 }}
                 h1 {{
                   margin: 0;
-                  font-size: clamp(28px, 5vw, 44px);
+                  font-size: clamp(34px, 4vw, 56px);
                   letter-spacing: 0;
                 }}
-                .sub {{ color: var(--muted); margin: 0; }}
-                .site-logo {{
-                  width: min(380px, 40vw);
-                  max-height: 150px;
-                  object-fit: contain;
+                .sub {{
+                  color: var(--text);
+                  font-size: clamp(17px, 1.5vw, 24px);
+                  margin: 0;
+                }}
+                .rss-link {{
+                  display: inline-flex;
+                  align-items: center;
+                  gap: 10px;
+                  border: 1px solid rgba(143, 232, 58, 0.65);
                   border-radius: 8px;
+                  color: var(--success);
+                  background: rgba(143, 232, 58, 0.06);
+                  padding: 16px 22px;
+                  font-size: 22px;
+                  text-decoration: none;
+                  white-space: nowrap;
+                }}
+                .rss-icon {{
+                  font-size: 24px;
+                  line-height: 1;
                 }}
                 main {{ padding: 24px 0 48px; }}
+                .control-panel {{
+                  border: 1px solid var(--line);
+                  border-radius: 8px;
+                  background: color-mix(in srgb, var(--panel) 86%, transparent);
+                  overflow: hidden;
+                  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+                }}
                 .toolbar {{
                   display: flex;
                   flex-wrap: wrap;
-                  gap: 10px;
-                  margin-bottom: 18px;
+                  gap: 28px;
+                  padding: 28px 24px;
                   color: var(--muted);
-                  font-size: 14px;
+                  border-bottom: 1px solid var(--line);
+                  font-size: 20px;
+                }}
+                .toolbar strong {{
+                  color: var(--success);
+                  font-weight: 700;
                 }}
                 .filters {{
                   display: grid;
                   grid-template-columns: 1fr 220px 180px 170px;
-                  gap: 10px;
-                  margin-bottom: 18px;
+                  gap: 14px;
+                  padding: 18px 24px 0;
                 }}
                 input, select {{
                   width: 100%;
                   border: 1px solid var(--line);
                   border-radius: 8px;
-                  padding: 10px 12px;
+                  padding: 14px 16px;
                   background: var(--panel);
                   color: var(--text);
                   font: inherit;
                 }}
+                .actions {{
+                  display: flex;
+                  flex-wrap: wrap;
+                  gap: 14px;
+                  padding: 16px 24px 24px;
+                }}
+                button {{
+                  border: 1px solid var(--line);
+                  border-radius: 8px;
+                  background: var(--panel);
+                  color: var(--text);
+                  cursor: pointer;
+                  font: inherit;
+                  padding: 12px 16px;
+                }}
+                .reset {{
+                  border-color: rgba(255, 95, 109, 0.75);
+                  color: var(--danger);
+                }}
+                .toggle {{
+                  border-color: rgba(29, 155, 240, 0.85);
+                  color: #35a7ff;
+                }}
                 @media (max-width: 720px) {{
                   .filters {{ grid-template-columns: 1fr; }}
+                  .wrap {{ width: min(100% - 28px, 1840px); }}
                   .top {{
                     align-items: flex-start;
-                    flex-direction: column-reverse;
+                    flex-direction: column;
                   }}
-                  .site-logo {{
-                    width: 100%;
-                    max-height: 180px;
-                  }}
+                  .rss-link {{ font-size: 18px; padding: 12px 16px; }}
                 }}
+                #items {{ margin-top: 20px; }}
                 .item {{
                   background: var(--panel);
                   border: 1px solid var(--line);
@@ -551,35 +649,42 @@ def render_site(config: dict[str, Any]) -> None:
             </head>
             <body>
               <header>
+                <div class="hero"{hero_style}></div>
                 <div class="wrap top">
                   <div class="brand">
                     <h1>Security News Radar</h1>
                     <p class="sub">Aktuelle CVEs, bekannte Exploits und wichtige Cybersecurity-Meldungen.</p>
                   </div>
-                  {logo_markup}
+                  <a class="rss-link" href="feed.xml" type="application/rss+xml"><span class="rss-icon">RSS</span> RSS Feed</a>
                 </div>
               </header>
               <main class="wrap">
-                <section class="toolbar">
-                  <span>Generiert: {generated}</span>
-                  <span>Filter: {html.escape(filter_keywords)}</span>
-                  <span id="count">Eintraege: {len(rows)}</span>
-                </section>
-                <section class="filters" aria-label="Seitensuche">
-                  <input id="query" type="search" placeholder="Thema suchen, z.B. ransomware, fortinet, zero-day">
-                  <select id="source">
-                    <option value="">Alle Quellen</option>
-                    {source_options}
-                  </select>
-                  <select id="sort">
-                    <option value="newest">Neueste zuerst</option>
-                    <option value="oldest">Aelteste zuerst</option>
-                  </select>
-                  <select id="theme">
-                    <option value="system">Systemmodus</option>
-                    <option value="dark">Darkmode</option>
-                    <option value="light">Lightmode</option>
-                  </select>
+                <section class="control-panel">
+                  <div class="toolbar">
+                    <span>Generiert: {generated}</span>
+                    <span>Filter: {html.escape(filter_keywords)}</span>
+                    <span id="count">Eintraege: <strong>{len(rows)}</strong></span>
+                  </div>
+                  <section class="filters" id="filters" aria-label="Seitensuche">
+                    <input id="query" type="search" placeholder="Thema suchen, z.B. ransomware, fortinet, zero-day">
+                    <select id="source">
+                      <option value="">Alle Quellen</option>
+                      {source_options}
+                    </select>
+                    <select id="sort">
+                      <option value="newest">Neueste zuerst</option>
+                      <option value="oldest">Aelteste zuerst</option>
+                    </select>
+                    <select id="theme">
+                      <option value="system">Systemmodus</option>
+                      <option value="dark">Darkmode</option>
+                      <option value="light">Lightmode</option>
+                    </select>
+                  </section>
+                  <div class="actions">
+                    <button class="reset" id="reset" type="button">x Filter zuruecksetzen</button>
+                    <button class="toggle" id="filterToggle" type="button">Filter ausblenden</button>
+                  </div>
                 </section>
                 <section id="items">
                   {''.join(cards) if cards else '<p>Noch keine passenden Meldungen gefunden.</p>'}
@@ -591,6 +696,9 @@ def render_site(config: dict[str, Any]) -> None:
                 const sort = document.getElementById('sort');
                 const theme = document.getElementById('theme');
                 const count = document.getElementById('count');
+                const filters = document.getElementById('filters');
+                const reset = document.getElementById('reset');
+                const filterToggle = document.getElementById('filterToggle');
                 const itemContainer = document.getElementById('items');
                 const items = Array.from(document.querySelectorAll('.item'));
                 const savedTheme = localStorage.getItem('security-news-theme') || 'system';
@@ -626,7 +734,7 @@ def render_site(config: dict[str, Any]) -> None:
                     item.hidden = !show;
                     if (show) visible += 1;
                   }}
-                  count.textContent = `Eintraege: ${{visible}}`;
+                  count.innerHTML = `Eintraege: <strong>${{visible}}</strong>`;
                 }}
                 function refresh() {{
                   applySort();
@@ -638,6 +746,17 @@ def render_site(config: dict[str, Any]) -> None:
                 source.addEventListener('change', applyFilters);
                 sort.addEventListener('change', refresh);
                 theme.addEventListener('change', applyTheme);
+                reset.addEventListener('click', () => {{
+                  query.value = '';
+                  source.value = '';
+                  sort.value = 'newest';
+                  refresh();
+                }});
+                filterToggle.addEventListener('click', () => {{
+                  const hidden = filters.hidden;
+                  filters.hidden = !hidden;
+                  filterToggle.textContent = hidden ? 'Filter ausblenden' : 'Filter oeffnen';
+                }});
               </script>
             </body>
             </html>
