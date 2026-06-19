@@ -524,13 +524,17 @@ def render_site(config: dict[str, Any]) -> None:
                   color: var(--header-text);
                 }}
                 .hero {{
-                  height: clamp(150px, 18vw, 270px);
+                  width: 100%;
+                  aspect-ratio: 8 / 3;
                   background-image: var(--hero-logo);
                   background-position: center;
                   background-repeat: no-repeat;
                   background-size: contain;
                   background-color: #050910;
                   border-bottom: 1px solid rgba(143, 232, 58, 0.15);
+                }}
+                .hero-wrap {{
+                  padding-top: 24px;
                 }}
                 .wrap {{
                   width: min(1840px, calc(100% - 56px));
@@ -639,8 +643,9 @@ def render_site(config: dict[str, Any]) -> None:
                   .wrap {{ width: min(100% - 28px, 1840px); }}
                   .hero {{
                     background-image: var(--hero-logo-mobile);
-                    height: clamp(170px, 52vw, 260px);
+                    aspect-ratio: 2.44 / 1;
                   }}
+                  .hero-wrap {{ padding-top: 14px; }}
                   .top {{
                     align-items: flex-start;
                     flex-direction: column;
@@ -681,7 +686,9 @@ def render_site(config: dict[str, Any]) -> None:
             </head>
             <body>
               <header>
-                <div class="hero"{hero_style}></div>
+                <div class="wrap hero-wrap">
+                  <div class="hero"{hero_style}></div>
+                </div>
                 <div class="wrap top">
                   <div class="brand">
                     <h1>Security News Radar</h1>
