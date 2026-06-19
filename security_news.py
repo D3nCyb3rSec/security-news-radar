@@ -525,7 +525,7 @@ def render_site(config: dict[str, Any]) -> None:
                 }}
                 .hero {{
                   width: 100%;
-                  aspect-ratio: 8 / 3;
+                  aspect-ratio: 1994 / 454;
                   background-image: var(--hero-logo);
                   background-position: center;
                   background-repeat: no-repeat;
@@ -534,7 +534,7 @@ def render_site(config: dict[str, Any]) -> None:
                   border-bottom: 1px solid rgba(143, 232, 58, 0.15);
                 }}
                 .hero-wrap {{
-                  padding-top: 24px;
+                  padding-top: 0;
                 }}
                 .wrap {{
                   width: min(1840px, calc(100% - 56px));
@@ -643,9 +643,9 @@ def render_site(config: dict[str, Any]) -> None:
                   .wrap {{ width: min(100% - 28px, 1840px); }}
                   .hero {{
                     background-image: var(--hero-logo-mobile);
-                    aspect-ratio: 2.44 / 1;
+                    aspect-ratio: 1959 / 803;
                   }}
-                  .hero-wrap {{ padding-top: 14px; }}
+                  .hero-wrap {{ padding-top: 0; }}
                   .top {{
                     align-items: flex-start;
                     flex-direction: column;
