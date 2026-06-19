@@ -68,6 +68,9 @@ def http_get(
     request_headers = {"User-Agent": USER_AGENT}
     request_headers.update(headers or {})
     last_error: Exception | None = None
+    retry_statuses = {429, 500, 502, 503, 504}
+    if "services.nvd.nist.gov/rest/json/cves/2.0" in url:
+        retry_statuses.add(404)
     for attempt in range(retries + 1):
         try:
             request = urllib.request.Request(url, headers=request_headers)
@@ -75,7 +78,7 @@ def http_get(
                 return response.read()
         except urllib.error.HTTPError as exc:
             last_error = exc
-            if exc.code not in {429, 500, 502, 503, 504} or attempt == retries:
+            if exc.code not in retry_statuses or attempt == retries:
                 raise
             retry_after = exc.headers.get("Retry-After")
             if retry_after and retry_after.isdigit():
