@@ -31,7 +31,8 @@ SITE_PATH = Path(os.environ.get("SECURITY_NEWS_SITE_PATH", ROOT / "public" / "in
 USER_AGENT = "SecurityNewsAggregator/1.0 (+local)"
 DEFAULT_HTTP_TIMEOUT = 45
 DEFAULT_HTTP_RETRIES = 4
-DEFAULT_LOGO = ROOT / "assets" / "security-news-radar-logo.png"
+DEFAULT_LOGO = ROOT / "assets" / "security-news-radar-logo-max.png"
+DEFAULT_MOBILE_LOGO = ROOT / "assets" / "security-news-radar-logo.png"
 
 
 def utc_now() -> dt.datetime:
@@ -409,7 +410,9 @@ def render_site(config: dict[str, Any]) -> None:
     generated = utc_now().strftime("%Y-%m-%d %H:%M UTC")
     filter_keywords = ", ".join(config.get("filters", {}).get("include_keywords", [])) or "keine"
     logo_path = Path(config.get("site_logo", DEFAULT_LOGO))
+    mobile_logo_path = Path(config.get("site_logo_mobile", DEFAULT_MOBILE_LOGO))
     logo_url = ""
+    mobile_logo_url = ""
     sources = sorted({row["source"] for row in rows})
     source_options = "".join(f'<option value="{html.escape(source)}">{html.escape(source)}</option>' for source in sources)
     cards = []
@@ -433,14 +436,26 @@ def render_site(config: dict[str, Any]) -> None:
             """
         )
     SITE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    if logo_path.exists():
-        logo_target = SITE_PATH.parent / "assets" / logo_path.name
+    for asset_path, assign_name in ((logo_path, "desktop"), (mobile_logo_path, "mobile")):
+        if not asset_path.exists():
+            continue
+        logo_target = SITE_PATH.parent / "assets" / asset_path.name
         logo_target.parent.mkdir(parents=True, exist_ok=True)
-        if logo_path.resolve() != logo_target.resolve():
-            shutil.copy2(logo_path, logo_target)
-        logo_url = f"assets/{urllib.parse.quote(logo_path.name)}"
+        if asset_path.resolve() != logo_target.resolve():
+            shutil.copy2(asset_path, logo_target)
+        copied_url = f"assets/{urllib.parse.quote(asset_path.name)}"
+        if assign_name == "desktop":
+            logo_url = copied_url
+        else:
+            mobile_logo_url = copied_url
     render_rss(rows, config)
-    hero_style = f' style="background-image: url(&quot;{html.escape(logo_url)}&quot;)"' if logo_url else ""
+    mobile_logo_url = mobile_logo_url or logo_url
+    hero_vars = []
+    if logo_url:
+        hero_vars.append(f"--hero-logo: url('{html.escape(logo_url)}')")
+    if mobile_logo_url:
+        hero_vars.append(f"--hero-logo-mobile: url('{html.escape(mobile_logo_url)}')")
+    hero_style = f' style="{"; ".join(hero_vars)}"' if hero_vars else ""
     SITE_PATH.write_text(
         textwrap.dedent(
             f"""\
@@ -510,6 +525,7 @@ def render_site(config: dict[str, Any]) -> None:
                 }}
                 .hero {{
                   height: clamp(150px, 18vw, 270px);
+                  background-image: var(--hero-logo);
                   background-position: center;
                   background-repeat: no-repeat;
                   background-size: contain;
@@ -621,6 +637,10 @@ def render_site(config: dict[str, Any]) -> None:
                 @media (max-width: 720px) {{
                   .filters {{ grid-template-columns: 1fr; }}
                   .wrap {{ width: min(100% - 28px, 1840px); }}
+                  .hero {{
+                    background-image: var(--hero-logo-mobile);
+                    height: clamp(170px, 52vw, 260px);
+                  }}
                   .top {{
                     align-items: flex-start;
                     flex-direction: column;

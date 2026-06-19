@@ -139,10 +139,11 @@ Aktiv enthalten sind NVD CVE, CISA Known Exploited Vulnerabilities und mehrere R
 
 Die HTML-Seite zeigt standardmaessig die neuesten Meldungen zuerst. Direkt auf der Seite kannst du nach Thema suchen, nach Quelle filtern, nach Datum auf- oder absteigend sortieren und zwischen Systemmodus, Darkmode und Lightmode wechseln. Die Theme-Auswahl wird im Browser gespeichert.
 
-Das Logo liegt im Repository unter `assets/security-news-radar-logo.png`. Beim Generieren der Webseite wird es automatisch in den Ausgabeordner kopiert, z. B. nach `/opt/apache/html/assets/security-news-radar-logo.png`. Der Pfad kann in `config.json` angepasst werden:
+Die Logos liegen im Repository unter `assets/`. Beim Generieren der Webseite werden sie automatisch in den Ausgabeordner kopiert, z. B. nach `/opt/apache/html/assets/`. Der Pfad kann in `config.json` angepasst werden:
 
 ```json
-"site_logo": "assets/security-news-radar-logo.png"
+"site_logo": "assets/security-news-radar-logo-max.png",
+"site_logo_mobile": "assets/security-news-radar-logo.png"
 ```
 
 Zusaetzlich wird ein RSS-Feed als `feed.xml` neben der Webseite erzeugt. Wenn die Seite oeffentlich erreichbar ist, kannst du optional die Basis-URL setzen:
