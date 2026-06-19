@@ -2,6 +2,8 @@
   "digest_title": "Security News Update",
   "lookback_days": 2,
   "kev_lookback_days": 14,
+  "nvd_retries": 5,
+  "nvd_timeout_seconds": 60,
   "request_delay_seconds": 0.5,
   "site_limit": 120,
   "notification_limit": 15,

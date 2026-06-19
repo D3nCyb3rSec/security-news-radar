@@ -27,6 +27,8 @@ DEFAULT_CONFIG = Path(os.environ.get("SECURITY_NEWS_CONFIG", ROOT / "config.json
 DB_PATH = Path(os.environ.get("SECURITY_NEWS_DB_PATH", ROOT / "data" / "security_news.sqlite"))
 SITE_PATH = Path(os.environ.get("SECURITY_NEWS_SITE_PATH", ROOT / "public" / "index.html"))
 USER_AGENT = "SecurityNewsAggregator/1.0 (+local)"
+DEFAULT_HTTP_TIMEOUT = 45
+DEFAULT_HTTP_RETRIES = 4
 
 
 def utc_now() -> dt.datetime:
@@ -57,7 +59,8 @@ def http_get(
     *,
     params: dict[str, str] | None = None,
     headers: dict[str, str] | None = None,
-    retries: int = 2,
+    retries: int = DEFAULT_HTTP_RETRIES,
+    timeout: int = DEFAULT_HTTP_TIMEOUT,
 ) -> bytes:
     if params:
         separator = "&" if "?" in url else "?"
@@ -68,18 +71,23 @@ def http_get(
     for attempt in range(retries + 1):
         try:
             request = urllib.request.Request(url, headers=request_headers)
-            with urllib.request.urlopen(request, timeout=30) as response:
+            with urllib.request.urlopen(request, timeout=timeout) as response:
                 return response.read()
         except urllib.error.HTTPError as exc:
             last_error = exc
             if exc.code not in {429, 500, 502, 503, 504} or attempt == retries:
                 raise
-            time.sleep(2 + attempt * 3)
+            retry_after = exc.headers.get("Retry-After")
+            if retry_after and retry_after.isdigit():
+                wait_seconds = min(int(retry_after), 120)
+            else:
+                wait_seconds = min(5 * (2**attempt), 120)
+            time.sleep(wait_seconds)
         except urllib.error.URLError as exc:
             last_error = exc
             if attempt == retries:
                 raise
-            time.sleep(2 + attempt * 3)
+            time.sleep(min(5 * (2**attempt), 120))
     raise RuntimeError(f"HTTP request failed: {last_error}")
 
 
@@ -125,7 +133,15 @@ def fetch_nvd(config: dict[str, Any]) -> list[dict[str, Any]]:
     api_key = os.environ.get("NVD_API_KEY")
     if api_key:
         headers["apiKey"] = api_key
-    data = json.loads(http_get("https://services.nvd.nist.gov/rest/json/cves/2.0", params=params, headers=headers))
+    data = json.loads(
+        http_get(
+            "https://services.nvd.nist.gov/rest/json/cves/2.0",
+            params=params,
+            headers=headers,
+            retries=int(config.get("nvd_retries", DEFAULT_HTTP_RETRIES)),
+            timeout=int(config.get("nvd_timeout_seconds", DEFAULT_HTTP_TIMEOUT)),
+        )
+    )
     items: list[dict[str, Any]] = []
     for entry in data.get("vulnerabilities", []):
         cve = entry.get("cve", {})

@@ -140,3 +140,10 @@ Optional kannst du fuer NVD einen API-Key setzen, damit Rate-Limits seltener sto
 ```bash
 NVD_API_KEY=your-nvd-api-key
 ```
+
+NVD ist gelegentlich trotz API-Key nicht erreichbar und liefert dann `503 Service Unavailable` oder Timeouts. Der Aggregator laeuft in diesem Fall mit den anderen Quellen weiter. Die Wartezeit und Anzahl der Versuche kannst du in `config.json` anpassen:
+
+```json
+"nvd_retries": 5,
+"nvd_timeout_seconds": 60
+```
