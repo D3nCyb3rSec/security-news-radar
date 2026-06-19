@@ -354,6 +354,13 @@ def load_recent(limit: int = 120) -> list[sqlite3.Row]:
     return rows
 
 
+def sort_timestamp(row: sqlite3.Row) -> float:
+    published = parse_iso(row["published"])
+    first_seen = parse_iso(row["first_seen"])
+    value = published or first_seen
+    return value.timestamp() if value else 0
+
+
 def render_site(config: dict[str, Any]) -> None:
     rows = load_recent(int(config.get("site_limit", 120)))
     generated = utc_now().strftime("%Y-%m-%d %H:%M UTC")
@@ -366,9 +373,10 @@ def render_site(config: dict[str, Any]) -> None:
         severity_class = severity.lower().replace("_", "-")
         summary = html.escape(row["summary"] or "")[:500]
         searchable = html.escape(f"{row['source']} {severity} {row['title']} {row['summary'] or ''}".lower())
+        timestamp = sort_timestamp(row)
         cards.append(
             f"""
-            <article class="item" data-source="{html.escape(row['source'])}" data-severity="{html.escape(severity)}" data-search="{searchable}">
+            <article class="item" data-source="{html.escape(row['source'])}" data-severity="{html.escape(severity)}" data-search="{searchable}" data-time="{timestamp}">
               <div class="meta">
                 <span class="source">{html.escape(row['source'])}</span>
                 <span class="severity {severity_class}">{html.escape(severity)}</span>
@@ -391,7 +399,7 @@ def render_site(config: dict[str, Any]) -> None:
               <title>Security News Radar</title>
               <style>
                 :root {{
-                  color-scheme: light dark;
+                  color-scheme: light;
                   --bg: #f6f7f9;
                   --panel: #ffffff;
                   --text: #151922;
@@ -403,8 +411,17 @@ def render_site(config: dict[str, Any]) -> None:
                   --medium: #a16207;
                   --known: #7c2d12;
                 }}
+                html[data-theme="dark"] {{
+                  color-scheme: dark;
+                  --bg: #101318;
+                  --panel: #171b22;
+                  --text: #eef2f7;
+                  --muted: #a7b0be;
+                  --line: #2b323d;
+                }}
                 @media (prefers-color-scheme: dark) {{
-                  :root {{
+                  html:not([data-theme="light"]) {{
+                    color-scheme: dark;
                     --bg: #101318;
                     --panel: #171b22;
                     --text: #eef2f7;
@@ -449,7 +466,7 @@ def render_site(config: dict[str, Any]) -> None:
                 }}
                 .filters {{
                   display: grid;
-                  grid-template-columns: 1fr 220px;
+                  grid-template-columns: 1fr 220px 180px 170px;
                   gap: 10px;
                   margin-bottom: 18px;
                 }}
@@ -515,6 +532,15 @@ def render_site(config: dict[str, Any]) -> None:
                     <option value="">Alle Quellen</option>
                     {source_options}
                   </select>
+                  <select id="sort">
+                    <option value="newest">Neueste zuerst</option>
+                    <option value="oldest">Aelteste zuerst</option>
+                  </select>
+                  <select id="theme">
+                    <option value="system">Systemmodus</option>
+                    <option value="dark">Darkmode</option>
+                    <option value="light">Lightmode</option>
+                  </select>
                 </section>
                 <section id="items">
                   {''.join(cards) if cards else '<p>Noch keine passenden Meldungen gefunden.</p>'}
@@ -523,8 +549,33 @@ def render_site(config: dict[str, Any]) -> None:
               <script>
                 const query = document.getElementById('query');
                 const source = document.getElementById('source');
+                const sort = document.getElementById('sort');
+                const theme = document.getElementById('theme');
                 const count = document.getElementById('count');
+                const itemContainer = document.getElementById('items');
                 const items = Array.from(document.querySelectorAll('.item'));
+                const savedTheme = localStorage.getItem('security-news-theme') || 'system';
+                theme.value = savedTheme;
+                function applyTheme() {{
+                  const value = theme.value;
+                  if (value === 'system') {{
+                    document.documentElement.removeAttribute('data-theme');
+                  }} else {{
+                    document.documentElement.dataset.theme = value;
+                  }}
+                  localStorage.setItem('security-news-theme', value);
+                }}
+                function applySort() {{
+                  const direction = sort.value === 'oldest' ? 1 : -1;
+                  const ordered = [...items].sort((a, b) => {{
+                    const left = Number(a.dataset.time || 0);
+                    const right = Number(b.dataset.time || 0);
+                    return (left - right) * direction;
+                  }});
+                  for (const item of ordered) {{
+                    itemContainer.appendChild(item);
+                  }}
+                }}
                 function applyFilters() {{
                   const q = query.value.trim().toLowerCase();
                   const s = source.value;
@@ -538,8 +589,16 @@ def render_site(config: dict[str, Any]) -> None:
                   }}
                   count.textContent = `Eintraege: ${{visible}}`;
                 }}
+                function refresh() {{
+                  applySort();
+                  applyFilters();
+                }}
+                applyTheme();
+                refresh();
                 query.addEventListener('input', applyFilters);
                 source.addEventListener('change', applyFilters);
+                sort.addEventListener('change', refresh);
+                theme.addEventListener('change', applyTheme);
               </script>
             </body>
             </html>

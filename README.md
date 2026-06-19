@@ -135,6 +135,10 @@ Beispiel:
 
 Aktiv enthalten sind NVD CVE, CISA Known Exploited Vulnerabilities und mehrere RSS-Feeds. Weitere RSS-Quellen koennen in `config.json` als Quelle mit `"type": "rss"` ergaenzt werden.
 
+## Webseite
+
+Die HTML-Seite zeigt standardmaessig die neuesten Meldungen zuerst. Direkt auf der Seite kannst du nach Thema suchen, nach Quelle filtern, nach Datum auf- oder absteigend sortieren und zwischen Systemmodus, Darkmode und Lightmode wechseln. Die Theme-Auswahl wird im Browser gespeichert.
+
 Optional kannst du fuer NVD einen API-Key setzen, damit Rate-Limits seltener stoeren:
 
 ```bash
