@@ -6,6 +6,7 @@
   "nvd_timeout_seconds": 60,
   "request_delay_seconds": 0.5,
   "site_limit": 120,
+  "site_logo": "assets/security-news-radar-logo.png",
   "notification_limit": 15,
   "notify_when_empty": false,
   "filters": {

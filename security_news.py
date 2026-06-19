@@ -9,6 +9,7 @@ import email.message
 import html
 import json
 import os
+import shutil
 import smtplib
 import sqlite3
 import sys
@@ -29,6 +30,7 @@ SITE_PATH = Path(os.environ.get("SECURITY_NEWS_SITE_PATH", ROOT / "public" / "in
 USER_AGENT = "SecurityNewsAggregator/1.0 (+local)"
 DEFAULT_HTTP_TIMEOUT = 45
 DEFAULT_HTTP_RETRIES = 4
+DEFAULT_LOGO = ROOT / "assets" / "security-news-radar-logo.png"
 
 
 def utc_now() -> dt.datetime:
@@ -365,6 +367,8 @@ def render_site(config: dict[str, Any]) -> None:
     rows = load_recent(int(config.get("site_limit", 120)))
     generated = utc_now().strftime("%Y-%m-%d %H:%M UTC")
     filter_keywords = ", ".join(config.get("filters", {}).get("include_keywords", [])) or "keine"
+    logo_path = Path(config.get("site_logo", DEFAULT_LOGO))
+    logo_url = ""
     sources = sorted({row["source"] for row in rows})
     source_options = "".join(f'<option value="{html.escape(source)}">{html.escape(source)}</option>' for source in sources)
     cards = []
@@ -388,6 +392,17 @@ def render_site(config: dict[str, Any]) -> None:
             """
         )
     SITE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if logo_path.exists():
+        logo_target = SITE_PATH.parent / "assets" / logo_path.name
+        logo_target.parent.mkdir(parents=True, exist_ok=True)
+        if logo_path.resolve() != logo_target.resolve():
+            shutil.copy2(logo_path, logo_target)
+        logo_url = f"assets/{urllib.parse.quote(logo_path.name)}"
+    logo_markup = (
+        f'<img class="site-logo" src="{html.escape(logo_url)}" alt="Security News Radar Logo">'
+        if logo_url
+        else ""
+    )
     SITE_PATH.write_text(
         textwrap.dedent(
             f"""\
@@ -446,8 +461,15 @@ def render_site(config: dict[str, Any]) -> None:
                 }}
                 .top {{
                   padding: 28px 0 22px;
+                  display: flex;
+                  align-items: center;
+                  justify-content: space-between;
+                  gap: 24px;
+                }}
+                .brand {{
                   display: grid;
                   gap: 8px;
+                  min-width: 0;
                 }}
                 h1 {{
                   margin: 0;
@@ -455,6 +477,12 @@ def render_site(config: dict[str, Any]) -> None:
                   letter-spacing: 0;
                 }}
                 .sub {{ color: var(--muted); margin: 0; }}
+                .site-logo {{
+                  width: min(380px, 40vw);
+                  max-height: 150px;
+                  object-fit: contain;
+                  border-radius: 8px;
+                }}
                 main {{ padding: 24px 0 48px; }}
                 .toolbar {{
                   display: flex;
@@ -481,6 +509,14 @@ def render_site(config: dict[str, Any]) -> None:
                 }}
                 @media (max-width: 720px) {{
                   .filters {{ grid-template-columns: 1fr; }}
+                  .top {{
+                    align-items: flex-start;
+                    flex-direction: column-reverse;
+                  }}
+                  .site-logo {{
+                    width: 100%;
+                    max-height: 180px;
+                  }}
                 }}
                 .item {{
                   background: var(--panel);
@@ -516,8 +552,11 @@ def render_site(config: dict[str, Any]) -> None:
             <body>
               <header>
                 <div class="wrap top">
-                  <h1>Security News Radar</h1>
-                  <p class="sub">Aktuelle CVEs, bekannte Exploits und wichtige Cybersecurity-Meldungen.</p>
+                  <div class="brand">
+                    <h1>Security News Radar</h1>
+                    <p class="sub">Aktuelle CVEs, bekannte Exploits und wichtige Cybersecurity-Meldungen.</p>
+                  </div>
+                  {logo_markup}
                 </div>
               </header>
               <main class="wrap">
