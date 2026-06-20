@@ -367,6 +367,16 @@ def sort_timestamp(row: sqlite3.Row) -> float:
     return value.timestamp() if value else 0
 
 
+def severity_score(value: str | None) -> int:
+    return {
+        "KNOWN_EXPLOITED": 50,
+        "CRITICAL": 40,
+        "HIGH": 30,
+        "MEDIUM": 20,
+        "LOW": 10,
+    }.get((value or "").upper(), 0)
+
+
 def render_rss(rows: list[sqlite3.Row], config: dict[str, Any]) -> None:
     site_url = str(config.get("site_url", "")).rstrip("/")
     feed_url = f"{site_url}/feed.xml" if site_url else "feed.xml"
@@ -422,9 +432,10 @@ def render_site(config: dict[str, Any]) -> None:
         summary = html.escape(row["summary"] or "")[:500]
         searchable = html.escape(f"{row['source']} {severity} {row['title']} {row['summary'] or ''}".lower())
         timestamp = sort_timestamp(row)
+        criticality = severity_score(severity)
         cards.append(
             f"""
-            <article class="item" data-source="{html.escape(row['source'])}" data-severity="{html.escape(severity)}" data-search="{searchable}" data-time="{timestamp}">
+            <article class="item" data-source="{html.escape(row['source'])}" data-severity="{html.escape(severity)}" data-search="{searchable}" data-time="{timestamp}" data-criticality="{criticality}">
               <div class="meta">
                 <span class="source">{html.escape(row['source'])}</span>
                 <span class="severity {severity_class}">{html.escape(severity)}</span>
@@ -575,10 +586,6 @@ def render_site(config: dict[str, Any]) -> None:
                   text-decoration: none;
                   white-space: nowrap;
                 }}
-                .rss-icon {{
-                  font-size: 24px;
-                  line-height: 1;
-                }}
                 main {{ padding: 24px 0 48px; }}
                 .control-panel {{
                   border: 1px solid var(--line);
@@ -602,9 +609,17 @@ def render_site(config: dict[str, Any]) -> None:
                 }}
                 .filters {{
                   display: grid;
-                  grid-template-columns: 1fr 220px 180px 170px;
                   gap: 14px;
                   padding: 18px 24px 0;
+                }}
+                .search-row {{
+                  display: grid;
+                  grid-template-columns: 1fr;
+                }}
+                .filter-row {{
+                  display: grid;
+                  grid-template-columns: 1fr 1fr 1fr;
+                  gap: 14px;
                 }}
                 input, select {{
                   width: 100%;
@@ -639,7 +654,7 @@ def render_site(config: dict[str, Any]) -> None:
                   color: #35a7ff;
                 }}
                 @media (max-width: 720px) {{
-                  .filters {{ grid-template-columns: 1fr; }}
+                  .filter-row {{ grid-template-columns: 1fr; }}
                   .wrap {{ width: min(100% - 28px, 1840px); }}
                   .hero {{
                     background-image: var(--hero-logo-mobile);
@@ -694,7 +709,7 @@ def render_site(config: dict[str, Any]) -> None:
                     <h1>Security News Radar</h1>
                     <p class="sub">Aktuelle CVEs, bekannte Exploits und wichtige Cybersecurity-Meldungen.</p>
                   </div>
-                  <a class="rss-link" href="feed.xml" type="application/rss+xml"><span class="rss-icon">RSS</span> RSS Feed</a>
+                  <a class="rss-link" href="feed.xml" type="application/rss+xml">RSS Feed</a>
                 </div>
               </header>
               <main class="wrap">
@@ -705,20 +720,26 @@ def render_site(config: dict[str, Any]) -> None:
                     <span id="count">Eintraege: <strong>{len(rows)}</strong></span>
                   </div>
                   <section class="filters" id="filters" aria-label="Seitensuche">
-                    <input id="query" type="search" placeholder="Thema suchen, z.B. ransomware, fortinet, zero-day">
-                    <select id="source">
-                      <option value="">Alle Quellen</option>
-                      {source_options}
-                    </select>
-                    <select id="sort">
-                      <option value="newest">Neueste zuerst</option>
-                      <option value="oldest">Aelteste zuerst</option>
-                    </select>
-                    <select id="theme">
-                      <option value="system">Systemmodus</option>
-                      <option value="dark">Darkmode</option>
-                      <option value="light">Lightmode</option>
-                    </select>
+                    <div class="search-row">
+                      <input id="query" type="search" placeholder="Thema suchen, z.B. ransomware, fortinet, zero-day">
+                    </div>
+                    <div class="filter-row">
+                      <select id="source">
+                        <option value="">Alle Quellen</option>
+                        {source_options}
+                      </select>
+                      <select id="sort">
+                        <option value="newest">Neueste zuerst</option>
+                        <option value="oldest">Aelteste zuerst</option>
+                        <option value="criticality">Kritikalitaet zuerst</option>
+                        <option value="criticality-low">Niedrige Kritikalitaet zuerst</option>
+                      </select>
+                      <select id="theme">
+                        <option value="system">Systemmodus</option>
+                        <option value="dark">Darkmode</option>
+                        <option value="light">Lightmode</option>
+                      </select>
+                    </div>
                   </section>
                   <div class="actions">
                     <button class="reset" id="reset" type="button">x Filter zuruecksetzen</button>
@@ -749,11 +770,21 @@ def render_site(config: dict[str, Any]) -> None:
                   localStorage.setItem('security-news-theme', value);
                 }}
                 function applySort() {{
-                  const direction = sort.value === 'oldest' ? 1 : -1;
                   const ordered = [...items].sort((a, b) => {{
-                    const left = Number(a.dataset.time || 0);
-                    const right = Number(b.dataset.time || 0);
-                    return (left - right) * direction;
+                    const leftTime = Number(a.dataset.time || 0);
+                    const rightTime = Number(b.dataset.time || 0);
+                    const leftCriticality = Number(a.dataset.criticality || 0);
+                    const rightCriticality = Number(b.dataset.criticality || 0);
+                    if (sort.value === 'oldest') {{
+                      return leftTime - rightTime;
+                    }}
+                    if (sort.value === 'criticality') {{
+                      return (rightCriticality - leftCriticality) || (rightTime - leftTime);
+                    }}
+                    if (sort.value === 'criticality-low') {{
+                      return (leftCriticality - rightCriticality) || (rightTime - leftTime);
+                    }}
+                    return rightTime - leftTime;
                   }});
                   for (const item of ordered) {{
                     itemContainer.appendChild(item);

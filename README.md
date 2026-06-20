@@ -137,7 +137,7 @@ Aktiv enthalten sind NVD CVE, CISA Known Exploited Vulnerabilities und mehrere R
 
 ## Webseite
 
-Die HTML-Seite zeigt standardmaessig die neuesten Meldungen zuerst. Direkt auf der Seite kannst du nach Thema suchen, nach Quelle filtern, nach Datum auf- oder absteigend sortieren und zwischen Systemmodus, Darkmode und Lightmode wechseln. Die Theme-Auswahl wird im Browser gespeichert.
+Die HTML-Seite zeigt standardmaessig die neuesten Meldungen zuerst. Direkt auf der Seite kannst du nach Thema suchen, nach Quelle filtern, nach Datum oder Kritikalitaet sortieren und zwischen Systemmodus, Darkmode und Lightmode wechseln. Die Theme-Auswahl wird im Browser gespeichert.
 
 Die Logos liegen im Repository unter `assets/`. Beim Generieren der Webseite werden sie automatisch in den Ausgabeordner kopiert, z. B. nach `/opt/apache/html/assets/`. Der Pfad kann in `config.json` angepasst werden:
 
