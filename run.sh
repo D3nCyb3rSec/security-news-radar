@@ -10,6 +10,13 @@ if [ -f "$ROOT/.env" ]; then
   set +a
 fi
 
+if [ -r "/etc/security-news.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "/etc/security-news.env"
+  set +a
+fi
+
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 cd "$ROOT"
