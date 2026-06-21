@@ -906,7 +906,7 @@ def language_logo_paths(config: dict[str, Any], language: str) -> tuple[Path, Pa
 
 
 def language_aspect_ratio(language: str) -> str:
-    return "2169 / 631" if language == "en" else "2168 / 681"
+    return "2169 / 631"
 
 
 def render_rss_file(rows: list[sqlite3.Row], config: dict[str, Any], output_dir: Path, language: str) -> None:
