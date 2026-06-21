@@ -976,13 +976,20 @@ def render_language_site(
     logo_url = copy_site_asset(output_path.parent, desktop_logo, extra_asset_dirs)
     mobile_logo_url = copy_site_asset(output_path.parent, mobile_logo, extra_asset_dirs) or logo_url
     render_rss_file(rows, config, output_path.parent, language)
-    hero_vars = []
+    hero_style = f' style="--hero-aspect: {language_aspect_ratio(language)}"'
+    hero_markup = ""
     if logo_url:
-        hero_vars.append(f"--hero-logo: url('{html.escape(logo_url)}')")
-    if mobile_logo_url:
-        hero_vars.append(f"--hero-logo-mobile: url('{html.escape(mobile_logo_url)}')")
-    hero_vars.append(f"--hero-aspect: {language_aspect_ratio(language)}")
-    hero_style = f' style="{"; ".join(hero_vars)}"'
+        source_markup = (
+            f'<source media="(max-width: 720px)" srcset="{html.escape(mobile_logo_url)}">'
+            if mobile_logo_url
+            else ""
+        )
+        hero_markup = (
+            f'<picture class="hero"{hero_style}>'
+            f'{source_markup}'
+            f'<img src="{html.escape(logo_url)}" alt="{html.escape(text["title"])}">'
+            f'</picture>'
+        )
     sources = sorted({row["source"] for row in rows})
     source_options = "".join(f'<option value="{html.escape(source)}">{html.escape(source)}</option>' for source in sources)
     language_switch = " ".join(
@@ -1078,12 +1085,16 @@ def render_language_site(
             .hero {{
               width: 100%;
               aspect-ratio: var(--hero-aspect);
-              background-image: var(--hero-logo);
-              background-position: center;
-              background-repeat: no-repeat;
-              background-size: contain;
+              display: block;
               background-color: #050910;
               border-bottom: 1px solid rgba(143, 232, 58, 0.15);
+              overflow: hidden;
+            }}
+            .hero img {{
+              display: block;
+              width: 100%;
+              height: 100%;
+              object-fit: contain;
             }}
             .wrap {{ width: min(1840px, calc(100% - 56px)); margin: 0 auto; }}
             .top {{
@@ -1169,7 +1180,6 @@ def render_language_site(
               .filter-row {{ grid-template-columns: 1fr; }}
               .wrap {{ width: min(100% - 28px, 1840px); }}
               .hero {{
-                background-image: var(--hero-logo-mobile);
                 aspect-ratio: 1959 / 803;
               }}
               .top {{ align-items: flex-start; flex-direction: column; }}
@@ -1210,7 +1220,7 @@ def render_language_site(
         </head>
         <body>
           <header>
-            <div class="wrap"><div class="hero"{hero_style}></div></div>
+            <div class="wrap">{hero_markup}</div>
             <div class="wrap top">
               <div class="brand">
                 <h1>{html.escape(text['title'])}</h1>
