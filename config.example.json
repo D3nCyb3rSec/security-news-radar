@@ -6,7 +6,14 @@
   "nvd_timeout_seconds": 60,
   "request_delay_seconds": 0.5,
   "site_limit": 120,
+  "languages": [
+    "de",
+    "en"
+  ],
+  "default_language": "de",
   "site_logo": "assets/security-news-radar-logo-max.png",
+  "site_logo_de": "assets/security-news-radar-logo-max.png",
+  "site_logo_en": "assets/security-news-radar-logo-max-en.png",
   "site_logo_mobile": "assets/security-news-radar-logo.png",
   "site_url": "",
   "rss_limit": 50,

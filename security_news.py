@@ -33,6 +33,54 @@ DEFAULT_HTTP_TIMEOUT = 45
 DEFAULT_HTTP_RETRIES = 4
 DEFAULT_LOGO = ROOT / "assets" / "security-news-radar-logo-max.png"
 DEFAULT_MOBILE_LOGO = ROOT / "assets" / "security-news-radar-logo.png"
+DEFAULT_EN_LOGO = ROOT / "assets" / "security-news-radar-logo-max-en.png"
+
+I18N = {
+    "de": {
+        "html_lang": "de",
+        "title": "Security News Radar",
+        "subtitle": "Aktuelle CVEs, bekannte Exploits und wichtige Cybersecurity-Meldungen.",
+        "feed_description": "Aktuelle CVEs, bekannte Exploits und wichtige Cybersecurity-Meldungen.",
+        "generated": "Generiert",
+        "filters": "Filter",
+        "entries": "Eintraege",
+        "search_placeholder": "Thema suchen, z.B. ransomware, fortinet, zero-day",
+        "all_sources": "Alle Quellen",
+        "newest": "Neueste zuerst",
+        "oldest": "Aelteste zuerst",
+        "criticality": "Kritikalitaet zuerst",
+        "criticality_low": "Niedrige Kritikalitaet zuerst",
+        "system": "Systemmodus",
+        "dark": "Darkmode",
+        "light": "Lightmode",
+        "reset": "x Filter zuruecksetzen",
+        "empty": "Noch keine passenden Meldungen gefunden.",
+        "rss": "RSS Feed",
+        "language": "Sprache",
+    },
+    "en": {
+        "html_lang": "en",
+        "title": "Security News Radar",
+        "subtitle": "Current CVEs, known exploits, and important cybersecurity updates.",
+        "feed_description": "Current CVEs, known exploits, and important cybersecurity updates.",
+        "generated": "Generated",
+        "filters": "Filters",
+        "entries": "Entries",
+        "search_placeholder": "Search topic, e.g. ransomware, fortinet, zero-day",
+        "all_sources": "All sources",
+        "newest": "Newest first",
+        "oldest": "Oldest first",
+        "criticality": "Criticality first",
+        "criticality_low": "Lowest criticality first",
+        "system": "System mode",
+        "dark": "Dark mode",
+        "light": "Light mode",
+        "reset": "x Reset filters",
+        "empty": "No matching items found yet.",
+        "rss": "RSS Feed",
+        "language": "Language",
+    },
+}
 
 
 def utc_now() -> dt.datetime:
@@ -825,6 +873,480 @@ def render_site(config: dict[str, Any]) -> None:
             """
         ),
         encoding="utf-8",
+    )
+
+
+def resolve_asset_path(value: str | Path) -> Path:
+    path = Path(value)
+    return path if path.is_absolute() else ROOT / path
+
+
+def copy_site_asset(output_dir: Path, asset_path: Path) -> str:
+    if not asset_path.exists():
+        return ""
+    target = output_dir / "assets" / asset_path.name
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if asset_path.resolve() != target.resolve():
+        shutil.copy2(asset_path, target)
+    return f"assets/{urllib.parse.quote(asset_path.name)}"
+
+
+def language_logo_paths(config: dict[str, Any], language: str) -> tuple[Path, Path]:
+    if language == "en":
+        desktop = config.get("site_logo_en", DEFAULT_EN_LOGO)
+    else:
+        desktop = config.get("site_logo_de", config.get("site_logo", DEFAULT_LOGO))
+    mobile = config.get("site_logo_mobile", DEFAULT_MOBILE_LOGO)
+    return resolve_asset_path(desktop), resolve_asset_path(mobile)
+
+
+def language_aspect_ratio(language: str) -> str:
+    return "2169 / 631" if language == "en" else "1994 / 454"
+
+
+def render_rss_file(rows: list[sqlite3.Row], config: dict[str, Any], output_dir: Path, language: str) -> None:
+    text = I18N.get(language, I18N["de"])
+    site_url = str(config.get("site_url", "")).rstrip("/")
+    if site_url:
+        if language in {"de", "en"}:
+            page_url = f"{site_url}/{language}/"
+            feed_url = f"{site_url}/{language}/feed.xml"
+        else:
+            page_url = f"{site_url}/"
+            feed_url = f"{site_url}/feed.xml"
+    else:
+        page_url = "index.html"
+        feed_url = "feed.xml"
+    items = []
+    for row in rows[: int(config.get("rss_limit", 50))]:
+        published = parse_iso(row["published"]) or parse_iso(row["first_seen"]) or utc_now()
+        items.append(
+            f"""
+            <item>
+              <title>{html.escape(row["title"])}</title>
+              <link>{html.escape(row["url"])}</link>
+              <guid isPermaLink="false">{html.escape(row["id"])}</guid>
+              <pubDate>{published.strftime("%a, %d %b %Y %H:%M:%S %z")}</pubDate>
+              <source>{html.escape(row["source"])}</source>
+              <description>{html.escape(row["summary"] or "")}</description>
+            </item>
+            """
+        )
+    feed = textwrap.dedent(
+        f"""\
+        <?xml version="1.0" encoding="UTF-8"?>
+        <rss version="2.0">
+          <channel>
+            <title>{html.escape(config.get("rss_title", text["title"]))}</title>
+            <link>{html.escape(page_url)}</link>
+            <description>{html.escape(text["feed_description"])}</description>
+            <language>{'en-US' if language == 'en' else 'de-DE'}</language>
+            <lastBuildDate>{utc_now().strftime("%a, %d %b %Y %H:%M:%S %z")}</lastBuildDate>
+            <atom:link xmlns:atom="http://www.w3.org/2005/Atom" href="{html.escape(feed_url)}" rel="self" type="application/rss+xml" />
+            {''.join(items)}
+          </channel>
+        </rss>
+        """
+    )
+    output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "feed.xml").write_text(feed, encoding="utf-8")
+
+
+def render_language_site(
+    rows: list[sqlite3.Row],
+    config: dict[str, Any],
+    language: str,
+    output_path: Path,
+    language_links: dict[str, str],
+) -> None:
+    text = I18N.get(language, I18N["de"])
+    generated = utc_now().strftime("%Y-%m-%d %H:%M UTC")
+    filter_keywords = ", ".join(config.get("filters", {}).get("include_keywords", [])) or "keine"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    desktop_logo, mobile_logo = language_logo_paths(config, language)
+    logo_url = copy_site_asset(output_path.parent, desktop_logo)
+    mobile_logo_url = copy_site_asset(output_path.parent, mobile_logo) or logo_url
+    render_rss_file(rows, config, output_path.parent, language)
+    hero_vars = []
+    if logo_url:
+        hero_vars.append(f"--hero-logo: url('{html.escape(logo_url)}')")
+    if mobile_logo_url:
+        hero_vars.append(f"--hero-logo-mobile: url('{html.escape(mobile_logo_url)}')")
+    hero_vars.append(f"--hero-aspect: {language_aspect_ratio(language)}")
+    hero_style = f' style="{"; ".join(hero_vars)}"'
+    sources = sorted({row["source"] for row in rows})
+    source_options = "".join(f'<option value="{html.escape(source)}">{html.escape(source)}</option>' for source in sources)
+    language_switch = " ".join(
+        f'<a href="{html.escape(url)}" lang="{html.escape(code)}">{code.upper()}</a>'
+        if code != language
+        else f'<strong>{code.upper()}</strong>'
+        for code, url in language_links.items()
+    )
+    cards = []
+    for row in rows:
+        severity = row["severity"] or "INFO"
+        severity_class = severity.lower().replace("_", "-")
+        summary = html.escape(row["summary"] or "")[:500]
+        searchable = html.escape(f"{row['source']} {severity} {row['title']} {row['summary'] or ''}".lower())
+        timestamp = sort_timestamp(row)
+        criticality = severity_score(severity)
+        cards.append(
+            f"""
+            <article class="item" data-source="{html.escape(row['source'])}" data-severity="{html.escape(severity)}" data-search="{searchable}" data-time="{timestamp}" data-criticality="{criticality}">
+              <div class="meta">
+                <span class="source">{html.escape(row['source'])}</span>
+                <span class="severity {severity_class}">{html.escape(severity)}</span>
+                <span>{html.escape(row['published'] or row['first_seen'])}</span>
+              </div>
+              <h2><a href="{html.escape(row['url'])}" target="_blank" rel="noreferrer">{html.escape(row['title'])}</a></h2>
+              <p>{summary}</p>
+            </article>
+            """
+        )
+    page = textwrap.dedent(
+        f"""\
+        <!doctype html>
+        <html lang="{html.escape(text['html_lang'])}">
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>{html.escape(text['title'])}</title>
+          <link rel="alternate" type="application/rss+xml" title="{html.escape(text['title'])} RSS Feed" href="feed.xml">
+          <style>
+            :root {{
+              color-scheme: light;
+              --bg: #f6f7f9;
+              --panel: #ffffff;
+              --text: #151922;
+              --muted: #5b6472;
+              --line: #dfe3ea;
+              --accent: #0b6bcb;
+              --critical: #b42318;
+              --high: #c2410c;
+              --medium: #a16207;
+              --known: #7c2d12;
+              --success: #8fe83a;
+              --danger: #ff5f6d;
+              --header-bg: #ffffff;
+              --header-text: #151922;
+              --header-muted: #5b6472;
+              --page-gradient: linear-gradient(180deg, #edf4fb 0%, var(--bg) 360px);
+            }}
+            html[data-theme="dark"] {{
+              color-scheme: dark;
+              --bg: #101318;
+              --panel: #171b22;
+              --text: #eef2f7;
+              --muted: #a7b0be;
+              --line: #2b323d;
+              --header-bg: #080d14;
+              --header-text: #eef2f7;
+              --header-muted: #a7b0be;
+              --page-gradient: radial-gradient(circle at 80% -10%, rgba(28, 117, 255, 0.20), transparent 28rem), linear-gradient(180deg, #080d14 0%, var(--bg) 360px);
+            }}
+            @media (prefers-color-scheme: dark) {{
+              html:not([data-theme="light"]) {{
+                color-scheme: dark;
+                --bg: #101318;
+                --panel: #171b22;
+                --text: #eef2f7;
+                --muted: #a7b0be;
+                --line: #2b323d;
+                --header-bg: #080d14;
+                --header-text: #eef2f7;
+                --header-muted: #a7b0be;
+                --page-gradient: radial-gradient(circle at 80% -10%, rgba(28, 117, 255, 0.20), transparent 28rem), linear-gradient(180deg, #080d14 0%, var(--bg) 360px);
+              }}
+            }}
+            * {{ box-sizing: border-box; }}
+            body {{
+              margin: 0;
+              font-family: Inter, Segoe UI, system-ui, sans-serif;
+              background: var(--page-gradient);
+              color: var(--text);
+            }}
+            header {{ background: var(--header-bg); color: var(--header-text); }}
+            .hero {{
+              width: 100%;
+              aspect-ratio: var(--hero-aspect);
+              background-image: var(--hero-logo);
+              background-position: center;
+              background-repeat: no-repeat;
+              background-size: contain;
+              background-color: #050910;
+              border-bottom: 1px solid rgba(143, 232, 58, 0.15);
+            }}
+            .wrap {{ width: min(1840px, calc(100% - 56px)); margin: 0 auto; }}
+            .top {{
+              padding: 44px 0 28px;
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 24px;
+            }}
+            .brand {{ display: grid; gap: 8px; min-width: 0; }}
+            h1 {{ margin: 0; font-size: clamp(34px, 4vw, 56px); letter-spacing: 0; }}
+            .sub {{ color: var(--header-muted); font-size: clamp(17px, 1.5vw, 24px); margin: 0; }}
+            .header-actions {{ display: flex; align-items: center; flex-wrap: wrap; gap: 14px; justify-content: flex-end; }}
+            .language-switch {{
+              display: inline-flex;
+              gap: 8px;
+              align-items: center;
+              color: var(--header-muted);
+              font-size: 17px;
+            }}
+            .language-switch a, .language-switch strong {{
+              border: 1px solid var(--line);
+              border-radius: 8px;
+              padding: 9px 11px;
+              text-decoration: none;
+            }}
+            .language-switch strong {{ color: var(--success); }}
+            .rss-link {{
+              display: inline-flex;
+              align-items: center;
+              gap: 10px;
+              border: 1px solid rgba(143, 232, 58, 0.65);
+              border-radius: 8px;
+              color: var(--success);
+              background: rgba(143, 232, 58, 0.06);
+              padding: 16px 22px;
+              font-size: 22px;
+              text-decoration: none;
+              white-space: nowrap;
+            }}
+            main {{ padding: 24px 0 48px; }}
+            .control-panel {{
+              border: 1px solid var(--line);
+              border-radius: 8px;
+              background: color-mix(in srgb, var(--panel) 86%, transparent);
+              overflow: hidden;
+              box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
+            }}
+            .toolbar {{
+              display: flex;
+              flex-wrap: wrap;
+              gap: 28px;
+              padding: 28px 24px;
+              color: var(--muted);
+              border-bottom: 1px solid var(--line);
+              font-size: 20px;
+            }}
+            .toolbar strong {{ color: var(--success); font-weight: 700; }}
+            .filters {{ display: grid; gap: 14px; padding: 18px 24px 0; }}
+            .search-row {{ display: grid; grid-template-columns: 1fr; }}
+            .filter-row {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }}
+            input, select {{
+              width: 100%;
+              border: 1px solid var(--line);
+              border-radius: 8px;
+              padding: 14px 16px;
+              background: var(--panel);
+              color: var(--text);
+              font: inherit;
+            }}
+            .actions {{ display: flex; flex-wrap: wrap; gap: 14px; padding: 16px 24px 24px; }}
+            button {{
+              border: 1px solid var(--line);
+              border-radius: 8px;
+              background: var(--panel);
+              color: var(--text);
+              cursor: pointer;
+              font: inherit;
+              padding: 12px 16px;
+            }}
+            .reset {{ border-color: rgba(255, 95, 109, 0.75); color: var(--danger); }}
+            @media (max-width: 720px) {{
+              .filter-row {{ grid-template-columns: 1fr; }}
+              .wrap {{ width: min(100% - 28px, 1840px); }}
+              .hero {{
+                background-image: var(--hero-logo-mobile);
+                aspect-ratio: 1959 / 803;
+              }}
+              .top {{ align-items: flex-start; flex-direction: column; }}
+              .header-actions {{ justify-content: flex-start; }}
+              .rss-link {{ font-size: 18px; padding: 12px 16px; }}
+            }}
+            #items {{ margin-top: 20px; }}
+            .item {{
+              background: var(--panel);
+              border: 1px solid var(--line);
+              border-radius: 8px;
+              padding: 18px;
+              margin-bottom: 12px;
+            }}
+            .meta {{
+              display: flex;
+              flex-wrap: wrap;
+              gap: 8px;
+              align-items: center;
+              color: var(--muted);
+              font-size: 13px;
+            }}
+            .source, .severity {{
+              border: 1px solid var(--line);
+              border-radius: 999px;
+              padding: 3px 8px;
+              color: var(--text);
+            }}
+            .critical {{ color: var(--critical); }}
+            .high {{ color: var(--high); }}
+            .medium {{ color: var(--medium); }}
+            .known-exploited {{ color: var(--known); }}
+            h2 {{ font-size: 19px; line-height: 1.35; margin: 12px 0 8px; }}
+            a {{ color: var(--accent); text-decoration: none; }}
+            a:hover {{ text-decoration: underline; }}
+            p {{ color: var(--muted); line-height: 1.55; margin: 0; }}
+          </style>
+        </head>
+        <body>
+          <header>
+            <div class="wrap"><div class="hero"{hero_style}></div></div>
+            <div class="wrap top">
+              <div class="brand">
+                <h1>{html.escape(text['title'])}</h1>
+                <p class="sub">{html.escape(text['subtitle'])}</p>
+              </div>
+              <div class="header-actions">
+                <nav class="language-switch" aria-label="{html.escape(text['language'])}">{language_switch}</nav>
+                <a class="rss-link" href="feed.xml" type="application/rss+xml">{html.escape(text['rss'])}</a>
+              </div>
+            </div>
+          </header>
+          <main class="wrap">
+            <section class="control-panel">
+              <div class="toolbar">
+                <span>{html.escape(text['generated'])}: {generated}</span>
+                <span>{html.escape(text['filters'])}: {html.escape(filter_keywords)}</span>
+                <span id="count">{html.escape(text['entries'])}: <strong>{len(rows)}</strong></span>
+              </div>
+              <section class="filters" id="filters" aria-label="{html.escape(text['filters'])}">
+                <div class="search-row">
+                  <input id="query" type="search" placeholder="{html.escape(text['search_placeholder'])}">
+                </div>
+                <div class="filter-row">
+                  <select id="source">
+                    <option value="">{html.escape(text['all_sources'])}</option>
+                    {source_options}
+                  </select>
+                  <select id="sort">
+                    <option value="newest">{html.escape(text['newest'])}</option>
+                    <option value="oldest">{html.escape(text['oldest'])}</option>
+                    <option value="criticality">{html.escape(text['criticality'])}</option>
+                    <option value="criticality-low">{html.escape(text['criticality_low'])}</option>
+                  </select>
+                  <select id="theme">
+                    <option value="system">{html.escape(text['system'])}</option>
+                    <option value="dark">{html.escape(text['dark'])}</option>
+                    <option value="light">{html.escape(text['light'])}</option>
+                  </select>
+                </div>
+              </section>
+              <div class="actions">
+                <button class="reset" id="reset" type="button">{html.escape(text['reset'])}</button>
+              </div>
+            </section>
+            <section id="items">
+              {''.join(cards) if cards else f'<p>{html.escape(text["empty"])}</p>'}
+            </section>
+          </main>
+          <script>
+            const query = document.getElementById('query');
+            const source = document.getElementById('source');
+            const sort = document.getElementById('sort');
+            const theme = document.getElementById('theme');
+            const count = document.getElementById('count');
+            const reset = document.getElementById('reset');
+            const itemContainer = document.getElementById('items');
+            const items = Array.from(document.querySelectorAll('.item'));
+            const entriesLabel = {json.dumps(text['entries'])};
+            const savedTheme = localStorage.getItem('security-news-theme') || 'system';
+            theme.value = savedTheme;
+            function applyTheme() {{
+              const value = theme.value;
+              if (value === 'system') {{
+                document.documentElement.removeAttribute('data-theme');
+              }} else {{
+                document.documentElement.dataset.theme = value;
+              }}
+              localStorage.setItem('security-news-theme', value);
+            }}
+            function applySort() {{
+              const ordered = [...items].sort((a, b) => {{
+                const leftTime = Number(a.dataset.time || 0);
+                const rightTime = Number(b.dataset.time || 0);
+                const leftCriticality = Number(a.dataset.criticality || 0);
+                const rightCriticality = Number(b.dataset.criticality || 0);
+                if (sort.value === 'oldest') {{
+                  return leftTime - rightTime;
+                }}
+                if (sort.value === 'criticality') {{
+                  return (rightCriticality - leftCriticality) || (rightTime - leftTime);
+                }}
+                if (sort.value === 'criticality-low') {{
+                  return (leftCriticality - rightCriticality) || (rightTime - leftTime);
+                }}
+                return rightTime - leftTime;
+              }});
+              for (const item of ordered) {{
+                itemContainer.appendChild(item);
+              }}
+            }}
+            function applyFilters() {{
+              const q = query.value.trim().toLowerCase();
+              const s = source.value;
+              let visible = 0;
+              for (const item of items) {{
+                const matchesQuery = !q || item.dataset.search.includes(q);
+                const matchesSource = !s || item.dataset.source === s;
+                const show = matchesQuery && matchesSource;
+                item.hidden = !show;
+                if (show) visible += 1;
+              }}
+              count.innerHTML = `${{entriesLabel}}: <strong>${{visible}}</strong>`;
+            }}
+            function refresh() {{
+              applySort();
+              applyFilters();
+            }}
+            applyTheme();
+            refresh();
+            query.addEventListener('input', applyFilters);
+            source.addEventListener('change', applyFilters);
+            sort.addEventListener('change', refresh);
+            theme.addEventListener('change', applyTheme);
+            reset.addEventListener('click', () => {{
+              query.value = '';
+              source.value = '';
+              sort.value = 'newest';
+              refresh();
+            }});
+          </script>
+        </body>
+        </html>
+        """
+    )
+    output_path.write_text(page, encoding="utf-8")
+
+
+def render_site(config: dict[str, Any]) -> None:
+    rows = load_recent(int(config.get("site_limit", 120)))
+    languages = [lang for lang in config.get("languages", ["de", "en"]) if lang in I18N]
+    if not languages:
+        languages = ["de"]
+    default_language = config.get("default_language", languages[0])
+    if default_language not in languages:
+        default_language = languages[0]
+    root_dir = SITE_PATH.parent
+    for language in languages:
+        language_dir = root_dir / language
+        links = {code: ("./" if code == language else f"../{code}/") for code in languages}
+        render_language_site(rows, config, language, language_dir / "index.html", links)
+    root_links = {code: (f"{code}/" if code != default_language else "index.html") for code in languages}
+    render_language_site(rows, config, default_language, SITE_PATH, root_links)
+    print(
+        "Sprachseiten: "
+        + ", ".join(str(root_dir / language / "index.html") for language in languages)
     )
 
 

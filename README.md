@@ -142,7 +142,11 @@ Die HTML-Seite zeigt standardmaessig die neuesten Meldungen zuerst. Direkt auf d
 Die Logos liegen im Repository unter `assets/`. Beim Generieren der Webseite werden sie automatisch in den Ausgabeordner kopiert, z. B. nach `/opt/apache/html/assets/`. Der Pfad kann in `config.json` angepasst werden:
 
 ```json
+"languages": ["de", "en"],
+"default_language": "de",
 "site_logo": "assets/security-news-radar-logo-max.png",
+"site_logo_de": "assets/security-news-radar-logo-max.png",
+"site_logo_en": "assets/security-news-radar-logo-max-en.png",
 "site_logo_mobile": "assets/security-news-radar-logo.png"
 ```
 
@@ -152,6 +156,17 @@ Zusaetzlich wird ein RSS-Feed als `feed.xml` neben der Webseite erzeugt. Wenn di
 "site_url": "https://security-news.example.com",
 "rss_limit": 50,
 "rss_title": "Security News Radar"
+```
+
+Bei aktivierten Sprachen werden diese Dateien erzeugt:
+
+```text
+index.html
+feed.xml
+de/index.html
+de/feed.xml
+en/index.html
+en/feed.xml
 ```
 
 Optional kannst du fuer NVD einen API-Key setzen, damit Rate-Limits seltener stoeren:
