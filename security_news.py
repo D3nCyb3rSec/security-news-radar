@@ -31,7 +31,7 @@ SITE_PATH = Path(os.environ.get("SECURITY_NEWS_SITE_PATH", ROOT / "public" / "in
 USER_AGENT = "SecurityNewsAggregator/1.0 (+local)"
 DEFAULT_HTTP_TIMEOUT = 45
 DEFAULT_HTTP_RETRIES = 4
-DEFAULT_LOGO = ROOT / "assets" / "security-news-radar-logo-max.png"
+DEFAULT_LOGO = ROOT / "assets" / "security-news-radar-logo-max-de.png"
 DEFAULT_MOBILE_LOGO = ROOT / "assets" / "security-news-radar-logo.png"
 DEFAULT_EN_LOGO = ROOT / "assets" / "security-news-radar-logo-max-en.png"
 
@@ -881,13 +881,14 @@ def resolve_asset_path(value: str | Path) -> Path:
     return path if path.is_absolute() else ROOT / path
 
 
-def copy_site_asset(output_dir: Path, asset_path: Path) -> str:
+def copy_site_asset(output_dir: Path, asset_path: Path, extra_output_dirs: list[Path] | None = None) -> str:
     if not asset_path.exists():
         return ""
-    target = output_dir / "assets" / asset_path.name
-    target.parent.mkdir(parents=True, exist_ok=True)
-    if asset_path.resolve() != target.resolve():
-        shutil.copy2(asset_path, target)
+    for target_dir in [output_dir, *(extra_output_dirs or [])]:
+        target = target_dir / "assets" / asset_path.name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if asset_path.resolve() != target.resolve():
+            shutil.copy2(asset_path, target)
     return f"assets/{urllib.parse.quote(asset_path.name)}"
 
 
@@ -905,7 +906,7 @@ def language_logo_paths(config: dict[str, Any], language: str) -> tuple[Path, Pa
 
 
 def language_aspect_ratio(language: str) -> str:
-    return "2169 / 631" if language == "en" else "1994 / 454"
+    return "2169 / 631" if language == "en" else "2168 / 681"
 
 
 def render_rss_file(rows: list[sqlite3.Row], config: dict[str, Any], output_dir: Path, language: str) -> None:
@@ -962,14 +963,16 @@ def render_language_site(
     language: str,
     output_path: Path,
     language_links: dict[str, str],
+    root_dir: Path | None = None,
 ) -> None:
     text = I18N.get(language, I18N["de"])
     generated = utc_now().strftime("%Y-%m-%d %H:%M UTC")
     filter_keywords = ", ".join(config.get("filters", {}).get("include_keywords", [])) or "keine"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     desktop_logo, mobile_logo = language_logo_paths(config, language)
-    logo_url = copy_site_asset(output_path.parent, desktop_logo)
-    mobile_logo_url = copy_site_asset(output_path.parent, mobile_logo) or logo_url
+    extra_asset_dirs = [root_dir] if root_dir and root_dir != output_path.parent else []
+    logo_url = copy_site_asset(output_path.parent, desktop_logo, extra_asset_dirs)
+    mobile_logo_url = copy_site_asset(output_path.parent, mobile_logo, extra_asset_dirs) or logo_url
     render_rss_file(rows, config, output_path.parent, language)
     hero_vars = []
     if logo_url:
@@ -1345,9 +1348,9 @@ def render_site(config: dict[str, Any]) -> None:
     for language in languages:
         language_dir = root_dir / language
         links = {code: ("./" if code == language else f"../{code}/") for code in languages}
-        render_language_site(rows, config, language, language_dir / "index.html", links)
+        render_language_site(rows, config, language, language_dir / "index.html", links, root_dir)
     root_links = {code: (f"{code}/" if code != default_language else "index.html") for code in languages}
-    render_language_site(rows, config, default_language, SITE_PATH, root_links)
+    render_language_site(rows, config, default_language, SITE_PATH, root_links, root_dir)
     print(
         "Sprachseiten: "
         + ", ".join(str(root_dir / language / "index.html") for language in languages)

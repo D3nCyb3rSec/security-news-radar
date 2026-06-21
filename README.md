@@ -144,8 +144,8 @@ Die Logos liegen im Repository unter `assets/`. Beim Generieren der Webseite wer
 ```json
 "languages": ["de", "en"],
 "default_language": "de",
-"site_logo": "assets/security-news-radar-logo-max.png",
-"site_logo_de": "assets/security-news-radar-logo-max.png",
+"site_logo": "assets/security-news-radar-logo-max-de.png",
+"site_logo_de": "assets/security-news-radar-logo-max-de.png",
 "site_logo_en": "assets/security-news-radar-logo-max-en.png",
 "site_logo_mobile": "assets/security-news-radar-logo.png"
 ```
