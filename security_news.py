@@ -966,7 +966,9 @@ def render_language_site(
     root_dir: Path | None = None,
 ) -> None:
     text = I18N.get(language, I18N["de"])
-    generated = utc_now().strftime("%Y-%m-%d %H:%M UTC")
+    generated_at = utc_now()
+    generated = generated_at.strftime("%Y-%m-%d %H:%M UTC")
+    generated_iso = generated_at.isoformat()
     filter_keywords = ", ".join(config.get("filters", {}).get("include_keywords", [])) or "keine"
     output_path.parent.mkdir(parents=True, exist_ok=True)
     desktop_logo, mobile_logo = language_logo_paths(config, language)
@@ -1223,7 +1225,7 @@ def render_language_site(
           <main class="wrap">
             <section class="control-panel">
               <div class="toolbar">
-                <span>{html.escape(text['generated'])}: {generated}</span>
+                <span>{html.escape(text['generated'])}: <time id="generatedAt" datetime="{html.escape(generated_iso)}">{generated}</time></span>
                 <span>{html.escape(text['filters'])}: {html.escape(filter_keywords)}</span>
                 <span id="count">{html.escape(text['entries'])}: <strong>{len(rows)}</strong></span>
               </div>
@@ -1264,11 +1266,22 @@ def render_language_site(
             const theme = document.getElementById('theme');
             const count = document.getElementById('count');
             const reset = document.getElementById('reset');
+            const generatedAt = document.getElementById('generatedAt');
             const itemContainer = document.getElementById('items');
             const items = Array.from(document.querySelectorAll('.item'));
             const entriesLabel = {json.dumps(text['entries'])};
             const savedTheme = localStorage.getItem('security-news-theme') || 'system';
             theme.value = savedTheme;
+            function applyGeneratedTime() {{
+              const value = generatedAt?.dateTime;
+              if (!value) return;
+              const date = new Date(value);
+              if (Number.isNaN(date.getTime())) return;
+              generatedAt.textContent = new Intl.DateTimeFormat(undefined, {{
+                dateStyle: 'medium',
+                timeStyle: 'short',
+              }}).format(date);
+            }}
             function applyTheme() {{
               const value = theme.value;
               if (value === 'system') {{
@@ -1316,6 +1329,7 @@ def render_language_site(
               applySort();
               applyFilters();
             }}
+            applyGeneratedTime();
             applyTheme();
             refresh();
             query.addEventListener('input', applyFilters);
