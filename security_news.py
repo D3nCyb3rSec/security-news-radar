@@ -897,7 +897,11 @@ def language_logo_paths(config: dict[str, Any], language: str) -> tuple[Path, Pa
     else:
         desktop = config.get("site_logo_de", config.get("site_logo", DEFAULT_LOGO))
     mobile = config.get("site_logo_mobile", DEFAULT_MOBILE_LOGO)
-    return resolve_asset_path(desktop), resolve_asset_path(mobile)
+    desktop_path = resolve_asset_path(desktop)
+    if not desktop_path.exists():
+        desktop_path = resolve_asset_path(config.get("site_logo", DEFAULT_LOGO))
+    mobile_path = resolve_asset_path(mobile)
+    return desktop_path, mobile_path
 
 
 def language_aspect_ratio(language: str) -> str:
