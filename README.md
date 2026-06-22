@@ -179,5 +179,7 @@ NVD ist gelegentlich trotz API-Key nicht erreichbar und liefert dann `503 Servic
 
 ```json
 "nvd_retries": 5,
-"nvd_timeout_seconds": 60
+"nvd_timeout_seconds": 60,
+"nvd_chunk_hours": 6,
+"nvd_chunk_delay_seconds": 1.0
 ```

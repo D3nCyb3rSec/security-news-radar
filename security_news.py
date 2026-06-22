@@ -185,25 +185,43 @@ def stable_id(source: str, url: str, title: str) -> str:
 def fetch_nvd(config: dict[str, Any]) -> list[dict[str, Any]]:
     days = int(config.get("lookback_days", 2))
     start = utc_now() - dt.timedelta(days=days)
-    params = {
-        "lastModStartDate": start.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-        "lastModEndDate": utc_now().strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-    }
     headers = {}
     api_key = os.environ.get("NVD_API_KEY")
     if api_key:
         headers["apiKey"] = api_key
-    data = json.loads(
-        http_get(
-            "https://services.nvd.nist.gov/rest/json/cves/2.0",
-            params=params,
-            headers=headers,
-            retries=int(config.get("nvd_retries", DEFAULT_HTTP_RETRIES)),
-            timeout=int(config.get("nvd_timeout_seconds", DEFAULT_HTTP_TIMEOUT)),
+
+    chunk_hours = max(1, int(config.get("nvd_chunk_hours", 6)))
+    retries = int(config.get("nvd_retries", DEFAULT_HTTP_RETRIES))
+    timeout = int(config.get("nvd_timeout_seconds", DEFAULT_HTTP_TIMEOUT))
+    chunk_delay = float(config.get("nvd_chunk_delay_seconds", 1.0))
+    current = start
+    end = utc_now()
+    vulnerabilities: dict[str, dict[str, Any]] = {}
+    while current < end:
+        chunk_end = min(current + dt.timedelta(hours=chunk_hours), end)
+        params = {
+            "lastModStartDate": current.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+            "lastModEndDate": chunk_end.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
+        }
+        data = json.loads(
+            http_get(
+                "https://services.nvd.nist.gov/rest/json/cves/2.0",
+                params=params,
+                headers=headers,
+                retries=retries,
+                timeout=timeout,
+            )
         )
-    )
+        for entry in data.get("vulnerabilities", []):
+            cve_id = entry.get("cve", {}).get("id")
+            if cve_id:
+                vulnerabilities[cve_id] = entry
+        current = chunk_end
+        if current < end:
+            time.sleep(chunk_delay)
+
     items: list[dict[str, Any]] = []
-    for entry in data.get("vulnerabilities", []):
+    for entry in vulnerabilities.values():
         cve = entry.get("cve", {})
         cve_id = cve.get("id", "")
         descriptions = cve.get("descriptions", [])
