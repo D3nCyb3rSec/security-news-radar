@@ -34,6 +34,15 @@ DEFAULT_HTTP_RETRIES = 4
 DEFAULT_LOGO = ROOT / "assets" / "security-news-radar-logo-max-de.png"
 DEFAULT_MOBILE_LOGO = ROOT / "assets" / "security-news-radar-logo.png"
 DEFAULT_EN_LOGO = ROOT / "assets" / "security-news-radar-logo-max-en.png"
+FAVICON_DIR = ROOT / "assets" / "favicons"
+FAVICON_FILES = (
+    "favicon.ico",
+    "favicon-32x32.png",
+    "favicon-16x16.png",
+    "apple-touch-icon.png",
+    "android-chrome-192x192.png",
+    "android-chrome-512x512.png",
+)
 
 I18N = {
     "de": {
@@ -182,6 +191,38 @@ def stable_id(source: str, url: str, title: str) -> str:
     return f"{source}:{url or title}".lower()
 
 
+def score_to_severity(score: Any) -> str:
+    try:
+        value = float(score)
+    except (TypeError, ValueError):
+        return ""
+    if value >= 9.0:
+        return "CRITICAL"
+    if value >= 7.0:
+        return "HIGH"
+    if value >= 4.0:
+        return "MEDIUM"
+    if value > 0:
+        return "LOW"
+    return ""
+
+
+def parse_euvd_date(value: str | None) -> str | None:
+    if not value:
+        return None
+    for pattern in ("%b %d, %Y, %I:%M:%S %p", "%b %d, %Y, %H:%M:%S"):
+        try:
+            parsed = dt.datetime.strptime(value, pattern).replace(tzinfo=dt.timezone.utc)
+            return parsed.isoformat()
+        except ValueError:
+            pass
+    return value
+
+
+def split_lines(value: str | None) -> list[str]:
+    return [line.strip() for line in (value or "").splitlines() if line.strip()]
+
+
 def fetch_nvd(config: dict[str, Any]) -> list[dict[str, Any]]:
     days = int(config.get("lookback_days", 2))
     start = utc_now() - dt.timedelta(days=days)
@@ -244,6 +285,60 @@ def fetch_nvd(config: dict[str, Any]) -> list[dict[str, Any]]:
                 "cve": cve_id,
                 "summary": summary,
                 "tags": ["cve", severity.lower()] if severity else ["cve"],
+            }
+        )
+    return items
+
+
+def fetch_euvd(config: dict[str, Any]) -> list[dict[str, Any]]:
+    days = int(config.get("euvd_lookback_days", config.get("lookback_days", 2)))
+    start = (utc_now() - dt.timedelta(days=days)).date().isoformat()
+    end = utc_now().date().isoformat()
+    size = min(100, int(config.get("euvd_size", 100)))
+    params = {
+        "fromUpdatedDate": start,
+        "toUpdatedDate": end,
+        "size": str(size),
+    }
+    data = json.loads(
+        http_get(
+            "https://euvdservices.enisa.europa.eu/api/search",
+            params=params,
+            retries=int(config.get("euvd_retries", DEFAULT_HTTP_RETRIES)),
+            timeout=int(config.get("euvd_timeout_seconds", DEFAULT_HTTP_TIMEOUT)),
+        )
+    )
+    raw_items = data.get("items", data if isinstance(data, list) else [])
+    items: list[dict[str, Any]] = []
+    for entry in raw_items:
+        euvd_id = entry.get("id", "")
+        aliases = split_lines(entry.get("aliases"))
+        cve_id = next((alias for alias in aliases if alias.startswith("CVE-")), "")
+        refs = split_lines(entry.get("references"))
+        severity = score_to_severity(entry.get("baseScore"))
+        vendors = [
+            vendor.get("vendor", {}).get("name", "")
+            for vendor in entry.get("enisaIdVendor", [])
+            if vendor.get("vendor", {}).get("name")
+        ]
+        products = [
+            product.get("product", {}).get("name", "")
+            for product in entry.get("enisaIdProduct", [])
+            if product.get("product", {}).get("name")
+        ]
+        subject = cve_id or euvd_id
+        vendor_suffix = f" ({', '.join(vendors[:2])})" if vendors else ""
+        items.append(
+            {
+                "id": f"euvd:{euvd_id}",
+                "source": "EUVD",
+                "title": f"{subject}: {entry.get('description', '')[:140]}{vendor_suffix}",
+                "url": f"https://euvd.enisa.europa.eu/enisa/{euvd_id}" if euvd_id else (refs[0] if refs else ""),
+                "published": parse_euvd_date(entry.get("dateUpdated") or entry.get("datePublished")),
+                "severity": severity,
+                "cve": cve_id,
+                "summary": entry.get("description", ""),
+                "tags": ["euvd", severity.lower(), *[v.lower() for v in vendors], *[p.lower() for p in products]],
             }
         )
     return items
@@ -364,6 +459,8 @@ def collect_items(config: dict[str, Any]) -> list[dict[str, Any]]:
             kind = source.get("type")
             if kind == "nvd":
                 items.extend(fetch_nvd(config))
+            elif kind == "euvd":
+                items.extend(fetch_euvd(config))
             elif kind == "cisa_kev":
                 items.extend(fetch_cisa_kev(config))
             elif kind == "rss":
@@ -910,6 +1007,17 @@ def copy_site_asset(output_dir: Path, asset_path: Path, extra_output_dirs: list[
     return f"assets/{urllib.parse.quote(asset_path.name)}"
 
 
+def copy_favicons(root_dir: Path) -> None:
+    root_dir.mkdir(parents=True, exist_ok=True)
+    for filename in FAVICON_FILES:
+        source = FAVICON_DIR / filename
+        if not source.exists():
+            continue
+        target = root_dir / filename
+        if source.resolve() != target.resolve():
+            shutil.copy2(source, target)
+
+
 def language_logo_paths(config: dict[str, Any], language: str) -> tuple[Path, Path]:
     if language == "en":
         desktop = config.get("site_logo_en", DEFAULT_EN_LOGO)
@@ -1045,6 +1153,10 @@ def render_language_site(
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>{html.escape(text['title'])}</title>
+          <link rel="icon" href="/favicon.ico" sizes="any">
+          <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+          <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+          <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
           <link rel="alternate" type="application/rss+xml" title="{html.escape(text['title'])} RSS Feed" href="feed.xml">
           <style>
             :root {{
@@ -1387,6 +1499,7 @@ def render_site(config: dict[str, Any]) -> None:
     if default_language not in languages:
         default_language = languages[0]
     root_dir = SITE_PATH.parent
+    copy_favicons(root_dir)
     for language in languages:
         language_dir = root_dir / language
         links = {code: ("./" if code == language else f"../{code}/") for code in languages}

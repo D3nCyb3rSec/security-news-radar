@@ -133,7 +133,7 @@ Beispiel:
 
 ## Quellen
 
-Aktiv enthalten sind NVD CVE, CISA Known Exploited Vulnerabilities und mehrere RSS-Feeds. Weitere RSS-Quellen koennen in `config.json` als Quelle mit `"type": "rss"` ergaenzt werden.
+Aktiv enthalten sind NVD CVE, EUVD, CISA Known Exploited Vulnerabilities und mehrere RSS-Feeds. Weitere RSS-Quellen koennen in `config.json` als Quelle mit `"type": "rss"` ergaenzt werden.
 
 ## Webseite
 
@@ -182,4 +182,13 @@ NVD ist gelegentlich trotz API-Key nicht erreichbar und liefert dann `503 Servic
 "nvd_timeout_seconds": 60,
 "nvd_chunk_hours": 6,
 "nvd_chunk_delay_seconds": 1.0
+```
+
+EUVD nutzt die oeffentliche ENISA-Schnittstelle und benoetigt keinen API-Key:
+
+```json
+"euvd_lookback_days": 2,
+"euvd_size": 100,
+"euvd_retries": 3,
+"euvd_timeout_seconds": 45
 ```
