@@ -5,8 +5,8 @@ config.json
 # Runtime data
 data/*.sqlite
 data/*.sqlite-*
-public/*.html
-public/*.xml
+public/*
+!public/.gitkeep
 
 # Python cache
 __pycache__/

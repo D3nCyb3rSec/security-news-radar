@@ -66,6 +66,18 @@ I18N = {
         "empty": "Noch keine passenden Meldungen gefunden.",
         "rss": "RSS Feed",
         "language": "Sprache",
+        "dashboard": "Lagebild",
+        "important_news": "Wichtige Security News",
+        "top_cves": "Top 10 aktuelle CVEs",
+        "kev_watchlist": "CISA KEV Watchlist",
+        "patch_priority": "Patch Priority",
+        "empty_panel": "Noch keine Daten fuer dieses Fenster.",
+        "immediate": "Sofort patchen",
+        "soon": "Innerhalb von 72 Stunden",
+        "observe": "Beobachten",
+        "total_cves": "CVEs",
+        "exploited": "Aktiv ausgenutzt",
+        "critical_high": "Critical/High",
     },
     "en": {
         "html_lang": "en",
@@ -88,6 +100,18 @@ I18N = {
         "empty": "No matching items found yet.",
         "rss": "RSS Feed",
         "language": "Language",
+        "dashboard": "Situation",
+        "important_news": "Important Security News",
+        "top_cves": "Top 10 Current CVEs",
+        "kev_watchlist": "CISA KEV Watchlist",
+        "patch_priority": "Patch Priority",
+        "empty_panel": "No data for this panel yet.",
+        "immediate": "Patch immediately",
+        "soon": "Within 72 hours",
+        "observe": "Monitor",
+        "total_cves": "CVEs",
+        "exploited": "Actively exploited",
+        "critical_high": "Critical/High",
     },
 }
 
@@ -538,6 +562,142 @@ def severity_score(value: str | None) -> int:
         "MEDIUM": 20,
         "LOW": 10,
     }.get((value or "").upper(), 0)
+
+
+def row_text(row: sqlite3.Row) -> str:
+    return " ".join(
+        str(row[key] or "") for key in ("source", "title", "summary", "severity", "cve", "tags")
+    ).lower()
+
+
+def is_cve_row(row: sqlite3.Row) -> bool:
+    source = (row["source"] or "").lower()
+    return bool(row["cve"]) or source in {"nvd cve", "euvd", "cisa kev"}
+
+
+def dashboard_score(row: sqlite3.Row) -> float:
+    text = row_text(row)
+    score = float(severity_score(row["severity"]))
+    if "cisa kev" in (row["source"] or "").lower() or "known_exploited" == (row["severity"] or "").lower():
+        score += 35
+    if "exploited" in text or "zero-day" in text or "0-day" in text:
+        score += 20
+    if "ransomware" in text or "remote code execution" in text or "rce" in text:
+        score += 12
+    timestamp = sort_timestamp(row)
+    if timestamp:
+        age_hours = max(0.0, (utc_now().timestamp() - timestamp) / 3600)
+        score += max(0.0, 18.0 - min(age_hours, 72.0) / 4.0)
+    return score
+
+
+def compact_date(row: sqlite3.Row) -> str:
+    parsed = parse_iso(row["published"]) or parse_iso(row["first_seen"])
+    if parsed:
+        return parsed.strftime("%Y-%m-%d")
+    return row["published"] or row["first_seen"] or ""
+
+
+def render_dashboard_entries(rows: list[sqlite3.Row], empty_text: str, limit: int) -> str:
+    if not rows:
+        return f'<p class="panel-empty">{html.escape(empty_text)}</p>'
+    entries = []
+    for row in rows[:limit]:
+        severity = row["severity"] or "INFO"
+        severity_class = severity.lower().replace("_", "-")
+        title = html.escape(row["title"])
+        summary = html.escape(row["summary"] or "")[:220]
+        entries.append(
+            f"""
+            <article class="panel-entry">
+              <div class="meta">
+                <span class="source">{html.escape(row['source'])}</span>
+                <span class="severity {severity_class}">{html.escape(severity)}</span>
+                <span>{html.escape(compact_date(row))}</span>
+              </div>
+              <h3><a href="{html.escape(row['url'])}" target="_blank" rel="noreferrer">{title}</a></h3>
+              <p>{summary}</p>
+            </article>
+            """
+        )
+    return "".join(entries)
+
+
+def render_priority_row(label: str, value: int, tone: str) -> str:
+    return (
+        f'<div class="priority-row {tone}">'
+        f'<span>{html.escape(label)}</span>'
+        f'<strong>{value}</strong>'
+        f'</div>'
+    )
+
+
+def render_dashboard(rows: list[sqlite3.Row], text: dict[str, str]) -> str:
+    cve_rows = [row for row in rows if is_cve_row(row)]
+    news_rows = [row for row in rows if not is_cve_row(row)]
+    top_news = sorted(news_rows, key=dashboard_score, reverse=True)[:6]
+    top_cves = sorted(cve_rows, key=dashboard_score, reverse=True)[:10]
+    kev_rows = [
+        row
+        for row in cve_rows
+        if (row["source"] or "").lower() == "cisa kev"
+        or (row["severity"] or "").upper() == "KNOWN_EXPLOITED"
+        or "exploited" in row_text(row)
+    ]
+    kev_rows = sorted(kev_rows, key=dashboard_score, reverse=True)[:6]
+    immediate = sum(
+        1
+        for row in cve_rows
+        if (row["severity"] or "").upper() in {"KNOWN_EXPLOITED", "CRITICAL"}
+        or (row["source"] or "").lower() == "cisa kev"
+    )
+    soon = sum(1 for row in cve_rows if (row["severity"] or "").upper() == "HIGH")
+    observe = max(0, len(cve_rows) - immediate - soon)
+    exploited = len(kev_rows)
+    critical_high = sum(1 for row in cve_rows if (row["severity"] or "").upper() in {"CRITICAL", "HIGH"})
+    return f"""
+      <section class="dashboard" aria-label="{html.escape(text['dashboard'])}">
+        <div class="dashboard-grid">
+          <section class="dash-panel panel-large">
+            <div class="panel-head">
+              <h2>{html.escape(text['important_news'])}</h2>
+              <span>{len(top_news)}</span>
+            </div>
+            {render_dashboard_entries(top_news, text['empty_panel'], 6)}
+          </section>
+          <section class="dash-panel panel-large">
+            <div class="panel-head">
+              <h2>{html.escape(text['top_cves'])}</h2>
+              <span>{len(top_cves)}</span>
+            </div>
+            {render_dashboard_entries(top_cves, text['empty_panel'], 10)}
+          </section>
+          <section class="dash-panel">
+            <div class="panel-head">
+              <h2>{html.escape(text['kev_watchlist'])}</h2>
+              <span>{exploited}</span>
+            </div>
+            {render_dashboard_entries(kev_rows, text['empty_panel'], 6)}
+          </section>
+          <section class="dash-panel">
+            <div class="panel-head">
+              <h2>{html.escape(text['patch_priority'])}</h2>
+              <span>{len(cve_rows)}</span>
+            </div>
+            <div class="priority-list">
+              {render_priority_row(text['immediate'], immediate, 'urgent')}
+              {render_priority_row(text['soon'], soon, 'soon')}
+              {render_priority_row(text['observe'], observe, 'watch')}
+            </div>
+            <div class="stat-grid">
+              <div><strong>{len(cve_rows)}</strong><span>{html.escape(text['total_cves'])}</span></div>
+              <div><strong>{exploited}</strong><span>{html.escape(text['exploited'])}</span></div>
+              <div><strong>{critical_high}</strong><span>{html.escape(text['critical_high'])}</span></div>
+            </div>
+          </section>
+        </div>
+      </section>
+    """
 
 
 def render_rss(rows: list[sqlite3.Row], config: dict[str, Any]) -> None:
@@ -1124,6 +1284,7 @@ def render_language_site(
         else f'<strong>{code.upper()}</strong>'
         for code, url in language_links.items()
     )
+    dashboard = render_dashboard(rows, text)
     cards = []
     for row in rows:
         severity = row["severity"] or "INFO"
@@ -1283,6 +1444,98 @@ def render_language_site(
               font-size: 20px;
             }}
             .toolbar strong {{ color: var(--success); font-weight: 700; }}
+            .dashboard {{
+              padding: 22px 24px 8px;
+              border-bottom: 1px solid var(--line);
+            }}
+            .dashboard-grid {{
+              display: grid;
+              grid-template-columns: repeat(4, minmax(0, 1fr));
+              gap: 16px;
+            }}
+            .dash-panel {{
+              min-height: 100%;
+              border: 1px solid var(--line);
+              border-radius: 8px;
+              background: color-mix(in srgb, var(--panel) 92%, transparent);
+              padding: 16px;
+            }}
+            .panel-large {{ grid-column: span 2; }}
+            .panel-head {{
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 12px;
+              margin-bottom: 12px;
+            }}
+            .panel-head h2 {{
+              margin: 0;
+              font-size: 18px;
+              line-height: 1.2;
+            }}
+            .panel-head span {{
+              min-width: 34px;
+              border: 1px solid var(--line);
+              border-radius: 999px;
+              padding: 4px 9px;
+              color: var(--success);
+              text-align: center;
+              font-weight: 700;
+            }}
+            .panel-entry {{
+              border-top: 1px solid var(--line);
+              padding: 12px 0;
+            }}
+            .panel-entry:first-of-type {{ border-top: 0; padding-top: 0; }}
+            .panel-entry h3 {{
+              font-size: 15px;
+              line-height: 1.35;
+              margin: 8px 0 5px;
+            }}
+            .panel-entry p, .panel-empty {{
+              font-size: 13px;
+              line-height: 1.45;
+            }}
+            .priority-list {{
+              display: grid;
+              gap: 10px;
+              margin-bottom: 16px;
+            }}
+            .priority-row {{
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              gap: 14px;
+              border: 1px solid var(--line);
+              border-radius: 8px;
+              padding: 12px;
+              color: var(--text);
+            }}
+            .priority-row strong {{ font-size: 24px; }}
+            .priority-row.urgent {{ border-color: rgba(180, 35, 24, 0.55); }}
+            .priority-row.soon {{ border-color: rgba(194, 65, 12, 0.55); }}
+            .priority-row.watch {{ border-color: rgba(11, 107, 203, 0.35); }}
+            .stat-grid {{
+              display: grid;
+              grid-template-columns: repeat(3, minmax(0, 1fr));
+              gap: 10px;
+            }}
+            .stat-grid div {{
+              border: 1px solid var(--line);
+              border-radius: 8px;
+              padding: 10px;
+            }}
+            .stat-grid strong {{
+              display: block;
+              color: var(--success);
+              font-size: 24px;
+            }}
+            .stat-grid span {{
+              display: block;
+              color: var(--muted);
+              font-size: 12px;
+              line-height: 1.25;
+            }}
             .filters {{ display: grid; gap: 14px; padding: 18px 24px 0; }}
             .search-row {{ display: grid; grid-template-columns: 1fr; }}
             .filter-row {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }}
@@ -1315,6 +1568,14 @@ def render_language_site(
               .top {{ align-items: flex-start; flex-direction: column; }}
               .header-actions {{ justify-content: flex-start; }}
               .rss-link {{ font-size: 18px; padding: 12px 16px; }}
+              .dashboard {{ padding: 14px; }}
+              .dashboard-grid {{ grid-template-columns: 1fr; }}
+              .panel-large {{ grid-column: auto; }}
+              .stat-grid {{ grid-template-columns: 1fr; }}
+            }}
+            @media (min-width: 721px) and (max-width: 1180px) {{
+              .dashboard-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+              .panel-large {{ grid-column: auto; }}
             }}
             #items {{ margin-top: 20px; }}
             .item {{
@@ -1369,6 +1630,7 @@ def render_language_site(
                 <span>{html.escape(text['filters'])}: {html.escape(filter_keywords)}</span>
                 <span id="count">{html.escape(text['entries'])}: <strong>{len(rows)}</strong></span>
               </div>
+              {dashboard}
               <section class="filters" id="filters" aria-label="{html.escape(text['filters'])}">
                 <div class="search-row">
                   <input id="query" type="search" placeholder="{html.escape(text['search_placeholder'])}">
