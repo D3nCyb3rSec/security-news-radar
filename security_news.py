@@ -663,36 +663,44 @@ def render_dashboard(rows: list[sqlite3.Row], text: dict[str, str]) -> str:
               <h2>{html.escape(text['important_news'])}</h2>
               <span>{len(top_news)}</span>
             </div>
-            {render_dashboard_entries(top_news, text['empty_panel'], 6)}
+            <div class="panel-scroll">
+              {render_dashboard_entries(top_news, text['empty_panel'], 6)}
+            </div>
           </section>
           <section class="dash-panel panel-large">
             <div class="panel-head">
               <h2>{html.escape(text['top_cves'])}</h2>
               <span>{len(top_cves)}</span>
             </div>
-            {render_dashboard_entries(top_cves, text['empty_panel'], 10)}
+            <div class="panel-scroll">
+              {render_dashboard_entries(top_cves, text['empty_panel'], 10)}
+            </div>
           </section>
           <section class="dash-panel">
             <div class="panel-head">
               <h2>{html.escape(text['kev_watchlist'])}</h2>
               <span>{exploited}</span>
             </div>
-            {render_dashboard_entries(kev_rows, text['empty_panel'], 6)}
+            <div class="panel-scroll">
+              {render_dashboard_entries(kev_rows, text['empty_panel'], 6)}
+            </div>
           </section>
           <section class="dash-panel">
             <div class="panel-head">
               <h2>{html.escape(text['patch_priority'])}</h2>
               <span>{len(cve_rows)}</span>
             </div>
-            <div class="priority-list">
-              {render_priority_row(text['immediate'], immediate, 'urgent')}
-              {render_priority_row(text['soon'], soon, 'soon')}
-              {render_priority_row(text['observe'], observe, 'watch')}
-            </div>
-            <div class="stat-grid">
-              <div><strong>{len(cve_rows)}</strong><span>{html.escape(text['total_cves'])}</span></div>
-              <div><strong>{exploited}</strong><span>{html.escape(text['exploited'])}</span></div>
-              <div><strong>{critical_high}</strong><span>{html.escape(text['critical_high'])}</span></div>
+            <div class="panel-scroll">
+              <div class="priority-list">
+                {render_priority_row(text['immediate'], immediate, 'urgent')}
+                {render_priority_row(text['soon'], soon, 'soon')}
+                {render_priority_row(text['observe'], observe, 'watch')}
+              </div>
+              <div class="stat-grid">
+                <div><strong>{len(cve_rows)}</strong><span>{html.escape(text['total_cves'])}</span></div>
+                <div><strong>{exploited}</strong><span>{html.escape(text['exploited'])}</span></div>
+                <div><strong>{critical_high}</strong><span>{html.escape(text['critical_high'])}</span></div>
+              </div>
             </div>
           </section>
         </div>
@@ -1454,11 +1462,18 @@ def render_language_site(
               gap: 16px;
             }}
             .dash-panel {{
-              min-height: 100%;
+              min-width: 260px;
+              min-height: 220px;
+              height: 340px;
+              max-height: 72vh;
               border: 1px solid var(--line);
               border-radius: 8px;
               background: color-mix(in srgb, var(--panel) 92%, transparent);
               padding: 16px;
+              display: flex;
+              flex-direction: column;
+              overflow: auto;
+              resize: both;
             }}
             .panel-large {{ grid-column: span 2; }}
             .panel-head {{
@@ -1467,6 +1482,7 @@ def render_language_site(
               justify-content: space-between;
               gap: 12px;
               margin-bottom: 12px;
+              flex: 0 0 auto;
             }}
             .panel-head h2 {{
               margin: 0;
@@ -1481,6 +1497,13 @@ def render_language_site(
               color: var(--success);
               text-align: center;
               font-weight: 700;
+            }}
+            .panel-scroll {{
+              flex: 1 1 auto;
+              min-height: 0;
+              overflow: auto;
+              padding-right: 6px;
+              scrollbar-width: thin;
             }}
             .panel-entry {{
               border-top: 1px solid var(--line);
@@ -1571,6 +1594,12 @@ def render_language_site(
               .dashboard {{ padding: 14px; }}
               .dashboard-grid {{ grid-template-columns: 1fr; }}
               .panel-large {{ grid-column: auto; }}
+              .dash-panel {{
+                width: auto;
+                min-width: 0;
+                height: 300px;
+                resize: vertical;
+              }}
               .stat-grid {{ grid-template-columns: 1fr; }}
             }}
             @media (min-width: 721px) and (max-width: 1180px) {{
