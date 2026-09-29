@@ -1399,6 +1399,7 @@ def render_language_site(
             body {{
               margin: 0;
               font-family: Inter, Segoe UI, system-ui, sans-serif;
+              font-size: 15px;
               background: var(--page-gradient);
               color: var(--text);
             }}
@@ -1417,7 +1418,7 @@ def render_language_site(
               height: 100%;
               object-fit: contain;
             }}
-            .wrap {{ width: min(1840px, calc(100% - 56px)); margin: 0 auto; }}
+            .wrap {{ width: min(70%, 1320px); margin: 0 auto; }}
             .top {{
               padding: 28px 0 22px;
               display: flex;
@@ -1426,15 +1427,15 @@ def render_language_site(
               gap: 24px;
             }}
             .brand {{ display: grid; gap: 8px; min-width: 0; }}
-            h1 {{ margin: 0; font-size: clamp(32px, 3vw, 44px); letter-spacing: 0; }}
-            .sub {{ color: var(--header-muted); font-size: 18px; margin: 0; }}
+            h1 {{ margin: 0; font-size: clamp(28px, 2.5vw, 38px); letter-spacing: 0; }}
+            .sub {{ color: var(--header-muted); font-size: 16px; margin: 0; }}
             .header-actions {{ display: flex; align-items: center; flex-wrap: wrap; gap: 14px; justify-content: flex-end; }}
             .language-switch {{
               display: inline-flex;
               gap: 8px;
               align-items: center;
               color: var(--header-muted);
-              font-size: 17px;
+              font-size: 15px;
             }}
             .language-switch a, .language-switch strong {{
               border: 1px solid var(--line);
@@ -1452,7 +1453,7 @@ def render_language_site(
               color: var(--success);
               background: rgba(143, 232, 58, 0.06);
               padding: 12px 16px;
-              font-size: 16px;
+              font-size: 15px;
               text-decoration: none;
               white-space: nowrap;
             }}
@@ -1484,7 +1485,7 @@ def render_language_site(
               padding: 18px 24px;
               color: var(--muted);
               border-bottom: 1px solid var(--line);
-              font-size: 16px;
+              font-size: 15px;
             }}
             .toolbar strong {{ color: var(--success); font-weight: 700; }}
             .dashboard {{
@@ -1627,7 +1628,7 @@ def render_language_site(
             .reset {{ border-color: rgba(255, 95, 109, 0.75); color: var(--danger); }}
             @media (max-width: 720px) {{
               .filter-row {{ grid-template-columns: 1fr; }}
-              .wrap {{ width: min(100% - 28px, 1840px); }}
+              .wrap {{ width: calc(100% - 28px); }}
               .hero {{
                 aspect-ratio: 1959 / 803;
               }}
@@ -1647,6 +1648,7 @@ def render_language_site(
               .stat-grid {{ grid-template-columns: 1fr; }}
             }}
             @media (min-width: 721px) and (max-width: 1180px) {{
+              .wrap {{ width: calc(100% - 40px); }}
               .dashboard-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
               .panel-large {{ grid-column: auto; }}
             }}
