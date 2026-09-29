@@ -1419,15 +1419,15 @@ def render_language_site(
             }}
             .wrap {{ width: min(1840px, calc(100% - 56px)); margin: 0 auto; }}
             .top {{
-              padding: 44px 0 28px;
+              padding: 28px 0 22px;
               display: flex;
               align-items: center;
               justify-content: space-between;
               gap: 24px;
             }}
             .brand {{ display: grid; gap: 8px; min-width: 0; }}
-            h1 {{ margin: 0; font-size: clamp(34px, 4vw, 56px); letter-spacing: 0; }}
-            .sub {{ color: var(--header-muted); font-size: clamp(17px, 1.5vw, 24px); margin: 0; }}
+            h1 {{ margin: 0; font-size: clamp(32px, 3vw, 44px); letter-spacing: 0; }}
+            .sub {{ color: var(--header-muted); font-size: 18px; margin: 0; }}
             .header-actions {{ display: flex; align-items: center; flex-wrap: wrap; gap: 14px; justify-content: flex-end; }}
             .language-switch {{
               display: inline-flex;
@@ -1451,8 +1451,8 @@ def render_language_site(
               border-radius: 8px;
               color: var(--success);
               background: rgba(143, 232, 58, 0.06);
-              padding: 16px 22px;
-              font-size: 22px;
+              padding: 12px 16px;
+              font-size: 16px;
               text-decoration: none;
               white-space: nowrap;
             }}
@@ -1480,11 +1480,11 @@ def render_language_site(
             .toolbar {{
               display: flex;
               flex-wrap: wrap;
-              gap: 28px;
-              padding: 28px 24px;
+              gap: 18px;
+              padding: 18px 24px;
               color: var(--muted);
               border-bottom: 1px solid var(--line);
-              font-size: 20px;
+              font-size: 16px;
             }}
             .toolbar strong {{ color: var(--success); font-weight: 700; }}
             .dashboard {{
@@ -1493,13 +1493,14 @@ def render_language_site(
             }}
             .dashboard-grid {{
               display: grid;
-              grid-template-columns: repeat(4, minmax(0, 1fr));
+              grid-template-columns: repeat(2, minmax(0, 1fr));
               gap: 16px;
             }}
             .dash-panel {{
-              min-width: 260px;
+              width: 100%;
+              min-width: 0;
               min-height: 220px;
-              height: 340px;
+              height: 320px;
               max-height: 72vh;
               border: 1px solid var(--line);
               border-radius: 8px;
@@ -1509,9 +1510,9 @@ def render_language_site(
               display: flex;
               flex-direction: column;
               overflow: hidden;
-              resize: both;
+              resize: vertical;
             }}
-            .panel-large {{ grid-column: span 2; }}
+            .panel-large {{ grid-column: auto; }}
             .panel-head {{
               display: flex;
               align-items: center;
@@ -1599,7 +1600,7 @@ def render_language_site(
             }}
             .filters {{ display: grid; gap: 14px; padding: 18px 24px 0; }}
             .search-row {{ display: grid; grid-template-columns: 1fr; }}
-            .filter-row {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }}
+            .filter-row {{ display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }}
             input, select {{
               width: 100%;
               border: 1px solid var(--line);
@@ -1719,11 +1720,6 @@ def render_language_site(
                     <option value="criticality">{html.escape(text['criticality'])}</option>
                     <option value="criticality-low">{html.escape(text['criticality_low'])}</option>
                   </select>
-                  <select id="theme">
-                    <option value="system">{html.escape(text['system'])}</option>
-                    <option value="dark">{html.escape(text['dark'])}</option>
-                    <option value="light">{html.escape(text['light'])}</option>
-                  </select>
                 </div>
               </section>
               <div class="actions">
@@ -1738,7 +1734,6 @@ def render_language_site(
             const query = document.getElementById('query');
             const source = document.getElementById('source');
             const sort = document.getElementById('sort');
-            const theme = document.getElementById('theme');
             const themeToggle = document.getElementById('themeToggle');
             const count = document.getElementById('count');
             const reset = document.getElementById('reset');
@@ -1761,8 +1756,7 @@ def render_language_site(
                 // Theme switching still works for the current page session.
               }}
             }}
-            const savedTheme = readThemePreference();
-            theme.value = savedTheme;
+            let selectedTheme = readThemePreference();
             function applyGeneratedTime() {{
               const value = generatedAt?.dateTime;
               if (!value) return;
@@ -1774,13 +1768,12 @@ def render_language_site(
               }}).format(date);
             }}
             function applyTheme() {{
-              const value = theme.value;
-              if (value === 'system') {{
+              if (selectedTheme === 'system') {{
                 document.documentElement.removeAttribute('data-theme');
               }} else {{
-                document.documentElement.dataset.theme = value;
+                document.documentElement.dataset.theme = selectedTheme;
               }}
-              writeThemePreference(value);
+              writeThemePreference(selectedTheme);
               updateThemeToggle();
             }}
             function isDarkTheme() {{
@@ -1794,7 +1787,7 @@ def render_language_site(
               themeToggle.setAttribute('aria-pressed', String(darkActive));
             }}
             function toggleTheme() {{
-              theme.value = isDarkTheme() ? 'light' : 'dark';
+              selectedTheme = isDarkTheme() ? 'light' : 'dark';
               applyTheme();
             }}
             function applySort() {{
@@ -1841,10 +1834,9 @@ def render_language_site(
             query.addEventListener('input', applyFilters);
             source.addEventListener('change', applyFilters);
             sort.addEventListener('change', refresh);
-            theme.addEventListener('change', applyTheme);
             themeToggle.addEventListener('click', toggleTheme);
             window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {{
-              if (theme.value === 'system') updateThemeToggle();
+              if (selectedTheme === 'system') updateThemeToggle();
             }});
             reset.addEventListener('click', () => {{
               query.value = '';
