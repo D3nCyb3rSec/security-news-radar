@@ -1322,6 +1322,18 @@ def render_language_site(
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1">
           <title>{html.escape(text['title'])}</title>
+          <script>
+            (() => {{
+              try {{
+                const saved = localStorage.getItem('security-news-theme');
+                if (saved === 'dark' || saved === 'light') {{
+                  document.documentElement.dataset.theme = saved;
+                }}
+              }} catch (error) {{
+                // Local file previews may not allow persistent browser storage.
+              }}
+            }})();
+          </script>
           <link rel="icon" href="/favicon.ico" sizes="any">
           <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
           <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
@@ -1354,6 +1366,11 @@ def render_language_site(
               --text: #eef2f7;
               --muted: #a7b0be;
               --line: #2b323d;
+              --accent: #69b7ff;
+              --critical: #ff766d;
+              --high: #ff9a62;
+              --medium: #f6c453;
+              --known: #ffad7a;
               --header-bg: #080d14;
               --header-text: #eef2f7;
               --header-muted: #a7b0be;
@@ -1367,6 +1384,11 @@ def render_language_site(
                 --text: #eef2f7;
                 --muted: #a7b0be;
                 --line: #2b323d;
+                --accent: #69b7ff;
+                --critical: #ff766d;
+                --high: #ff9a62;
+                --medium: #f6c453;
+                --known: #ffad7a;
                 --header-bg: #080d14;
                 --header-text: #eef2f7;
                 --header-muted: #a7b0be;
@@ -1438,6 +1460,7 @@ def render_language_site(
             .control-panel {{
               border: 1px solid var(--line);
               border-radius: 8px;
+              background: var(--panel);
               background: color-mix(in srgb, var(--panel) 86%, transparent);
               overflow: hidden;
               box-shadow: 0 18px 50px rgba(0, 0, 0, 0.18);
@@ -1468,11 +1491,12 @@ def render_language_site(
               max-height: 72vh;
               border: 1px solid var(--line);
               border-radius: 8px;
+              background: var(--panel);
               background: color-mix(in srgb, var(--panel) 92%, transparent);
               padding: 16px;
               display: flex;
               flex-direction: column;
-              overflow: auto;
+              overflow: hidden;
               resize: both;
             }}
             .panel-large {{ grid-column: span 2; }}
@@ -1502,8 +1526,10 @@ def render_language_site(
               flex: 1 1 auto;
               min-height: 0;
               overflow: auto;
+              overscroll-behavior: contain;
               padding-right: 6px;
               scrollbar-width: thin;
+              scrollbar-color: var(--line) transparent;
             }}
             .panel-entry {{
               border-top: 1px solid var(--line);
@@ -1580,6 +1606,10 @@ def render_language_site(
               cursor: pointer;
               font: inherit;
               padding: 12px 16px;
+            }}
+            input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {{
+              outline: 3px solid color-mix(in srgb, var(--accent) 55%, transparent);
+              outline-offset: 2px;
             }}
             .reset {{ border-color: rgba(255, 95, 109, 0.75); color: var(--danger); }}
             @media (max-width: 720px) {{
@@ -1701,7 +1731,22 @@ def render_language_site(
             const itemContainer = document.getElementById('items');
             const items = Array.from(document.querySelectorAll('.item'));
             const entriesLabel = {json.dumps(text['entries'])};
-            const savedTheme = localStorage.getItem('security-news-theme') || 'system';
+            function readThemePreference() {{
+              try {{
+                const value = localStorage.getItem('security-news-theme');
+                return ['system', 'dark', 'light'].includes(value) ? value : 'system';
+              }} catch (error) {{
+                return 'system';
+              }}
+            }}
+            function writeThemePreference(value) {{
+              try {{
+                localStorage.setItem('security-news-theme', value);
+              }} catch (error) {{
+                // Theme switching still works for the current page session.
+              }}
+            }}
+            const savedTheme = readThemePreference();
             theme.value = savedTheme;
             function applyGeneratedTime() {{
               const value = generatedAt?.dateTime;
@@ -1720,7 +1765,7 @@ def render_language_site(
               }} else {{
                 document.documentElement.dataset.theme = value;
               }}
-              localStorage.setItem('security-news-theme', value);
+              writeThemePreference(value);
             }}
             function applySort() {{
               const ordered = [...items].sort((a, b) => {{
