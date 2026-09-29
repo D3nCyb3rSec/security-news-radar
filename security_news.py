@@ -1456,6 +1456,18 @@ def render_language_site(
               text-decoration: none;
               white-space: nowrap;
             }}
+            .theme-toggle {{
+              border-color: var(--line);
+              background: var(--panel);
+              color: var(--text);
+              padding: 14px 18px;
+              font-weight: 700;
+              white-space: nowrap;
+            }}
+            .theme-toggle[aria-pressed="true"] {{
+              border-color: rgba(143, 232, 58, 0.65);
+              color: var(--success);
+            }}
             main {{ padding: 24px 0 48px; }}
             .control-panel {{
               border: 1px solid var(--line);
@@ -1621,6 +1633,7 @@ def render_language_site(
               .top {{ align-items: flex-start; flex-direction: column; }}
               .header-actions {{ justify-content: flex-start; }}
               .rss-link {{ font-size: 18px; padding: 12px 16px; }}
+              .theme-toggle {{ padding: 12px 16px; }}
               .dashboard {{ padding: 14px; }}
               .dashboard-grid {{ grid-template-columns: 1fr; }}
               .panel-large {{ grid-column: auto; }}
@@ -1678,6 +1691,7 @@ def render_language_site(
               </div>
               <div class="header-actions">
                 <nav class="language-switch" aria-label="{html.escape(text['language'])}">{language_switch}</nav>
+                <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false">{html.escape(text['dark'])}</button>
                 <a class="rss-link" href="feed.xml" type="application/rss+xml">{html.escape(text['rss'])}</a>
               </div>
             </div>
@@ -1725,6 +1739,7 @@ def render_language_site(
             const source = document.getElementById('source');
             const sort = document.getElementById('sort');
             const theme = document.getElementById('theme');
+            const themeToggle = document.getElementById('themeToggle');
             const count = document.getElementById('count');
             const reset = document.getElementById('reset');
             const generatedAt = document.getElementById('generatedAt');
@@ -1766,6 +1781,21 @@ def render_language_site(
                 document.documentElement.dataset.theme = value;
               }}
               writeThemePreference(value);
+              updateThemeToggle();
+            }}
+            function isDarkTheme() {{
+              const selected = document.documentElement.dataset.theme;
+              if (selected) return selected === 'dark';
+              return window.matchMedia('(prefers-color-scheme: dark)').matches;
+            }}
+            function updateThemeToggle() {{
+              const darkActive = isDarkTheme();
+              themeToggle.textContent = darkActive ? {json.dumps(text['light'])} : {json.dumps(text['dark'])};
+              themeToggle.setAttribute('aria-pressed', String(darkActive));
+            }}
+            function toggleTheme() {{
+              theme.value = isDarkTheme() ? 'light' : 'dark';
+              applyTheme();
             }}
             function applySort() {{
               const ordered = [...items].sort((a, b) => {{
@@ -1812,6 +1842,10 @@ def render_language_site(
             source.addEventListener('change', applyFilters);
             sort.addEventListener('change', refresh);
             theme.addEventListener('change', applyTheme);
+            themeToggle.addEventListener('click', toggleTheme);
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {{
+              if (theme.value === 'system') updateThemeToggle();
+            }});
             reset.addEventListener('click', () => {{
               query.value = '';
               source.value = '';
