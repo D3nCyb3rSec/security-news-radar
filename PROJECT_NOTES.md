@@ -28,6 +28,9 @@ SSH-Schluessel und andere Geheimnisse gehoeren nicht in dieses Repository.
 - Filter: Freitextsuche und Quelle
 - Sortierung: Datum oder Kritikalitaet
 - Ausgaben: HTML-Seiten und RSS-Feeds je Sprache
+- RSS-Adressen: `/feed.xml`, `/de/feed.xml` und `/en/feed.xml`
+- RSS-Dateien muessen unmittelbar mit der XML-Deklaration beginnen; fuehrender
+  Leerraum macht sie fuer strenge Feed-Reader ungueltig.
 - Quellen: NVD, EUVD, CISA KEV und konfigurierte RSS-Feeds
 
 ## Lokaler Aufbau
@@ -57,7 +60,8 @@ und duerfen nicht ungefragt verworfen werden.
 1. Python-Syntax pruefen.
 2. Seiten lokal neu erzeugen.
 3. Eingebettetes JavaScript syntaktisch pruefen.
-4. Sicherstellen, dass nur ein Theme-Schalter vorhanden ist.
-5. Desktop- und Mobilregeln auf Ueberlauf und zu schmale Inhalte kontrollieren.
-6. Aenderungsumfang und unbeabsichtigte Dateiaenderungen pruefen.
-7. Nach der Veroeffentlichung die Live-Seite visuell kontrollieren.
+4. Alle erzeugten RSS-Dateien mit einem XML-Parser pruefen.
+5. Sicherstellen, dass nur ein Theme-Schalter vorhanden ist.
+6. Desktop- und Mobilregeln auf Ueberlauf und zu schmale Inhalte kontrollieren.
+7. Aenderungsumfang und unbeabsichtigte Dateiaenderungen pruefen.
+8. Nach der Veroeffentlichung die Live-Seite und beide Sprachfeeds kontrollieren.

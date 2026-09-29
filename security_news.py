@@ -742,7 +742,7 @@ def render_rss(rows: list[sqlite3.Row], config: dict[str, Any]) -> None:
           </channel>
         </rss>
         """
-    )
+    ).lstrip()
     (SITE_PATH.parent / "feed.xml").write_text(feed, encoding="utf-8")
 
 
@@ -1246,7 +1246,7 @@ def render_rss_file(rows: list[sqlite3.Row], config: dict[str, Any], output_dir:
           </channel>
         </rss>
         """
-    )
+    ).lstrip()
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "feed.xml").write_text(feed, encoding="utf-8")
 
